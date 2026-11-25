@@ -60,6 +60,7 @@
     <string name="group_appearance">Appearance</string>
     <string name="group_touch_lock">Touch lock</string>
     <string name="group_backend">Radio backend</string>
+    <string name="group_connection">Radio connection</string>
     <string name="group_logging">Flight log</string>
     <string name="group_library">Library</string>
     <string name="group_backup">Backup</string>
@@ -145,6 +146,8 @@
     <string name="app_units_imperial">Imperial</string>
     <string name="app_keep_screen_on">Keep screen on</string>
     <string name="app_keep_screen_on_desc">Prevents the display from switching off while the app is open</string>
+    <string name="app_close_stock">Close the stock app automatically</string>
+    <string name="app_close_stock_desc">Closes the stock RadioMaster app before connecting; it blocks the radio while it runs in the background</string>
     <string name="lock_hold">Unlock hold time</string>
     <string name="lock_hold_desc">How long the unlock control must be held</string>
     <string name="lock_auto">Automatic lock</string>

@@ -12,6 +12,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -23,8 +24,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.openax12.app.R
+import org.openax12.app.RadioConnector
+import org.openax12.app.StockApp
+import org.openax12.app.showSlowConnectHint
 import org.openax12.core.designsystem.AxBottomBar
 import org.openax12.core.designsystem.AxDestination
 import org.openax12.core.designsystem.AxFlightModeChip
@@ -68,6 +73,8 @@ import org.openax12.feature.telemetry.telemetryEntries
  * touch lock.
  *
  * @param graph the application's service locator
+ * @param connector starts the radio connection (Retry buttons) and closes the stock app
+ * @param stockApp the stock RadioMaster app (installed? open its app info page)
  * @param window the activity window (brightness, keep-screen-on, screenshots)
  * @param shellActions activity-only actions offered to screens
  * @param pendingImport URI string of a shared / opened `.oax12` file that still has to be routed
@@ -77,6 +84,8 @@ import org.openax12.feature.telemetry.telemetryEntries
 @Composable
 internal fun Ax12Root(
     graph: AppGraph,
+    connector: RadioConnector,
+    stockApp: StockApp,
     window: Window,
     shellActions: ShellActions,
     pendingImport: String?,
@@ -94,6 +103,8 @@ internal fun Ax12Root(
                 Box(modifier = Modifier.fillMaxSize().trackTouches(touchLock)) {
                     StartupGate(
                         graph = graph,
+                        connector = connector,
+                        stockApp = stockApp,
                         window = window,
                         touchLock = touchLock,
                         pendingImport = pendingImport,
@@ -120,6 +131,8 @@ internal fun Ax12Root(
 @Composable
 private fun StartupGate(
     graph: AppGraph,
+    connector: RadioConnector,
+    stockApp: StockApp,
     window: Window,
     touchLock: TouchLockState,
     pendingImport: String?,
@@ -136,33 +149,71 @@ private fun StartupGate(
             dismissedFor = null
         }
     }
+    val recovering by connector.recovering.collectAsStateWithLifecycle()
+    val stockInstalled = stockApp.isInstalled
     val retry: () -> Unit = {
         dismissedFor = null
-        graph.scope.launch { graph.start() }
+        connector.connect()
     }
 
     if (startup.isRunning || everRunning || continueOffline) {
         Shell(graph, window, touchLock, pendingImport, onImportHandled)
         val failed = startup as? StartupState.RadioFailed
         if (failed != null && !continueOffline && dismissedFor != failed.reason) {
-            ConnectionLostDialog(reason = failed.reason, onRetry = retry, onDismiss = { dismissedFor = failed.reason })
+            ConnectionLostDialog(
+                reason = failed.reason,
+                onRetry = retry,
+                onDismiss = { dismissedFor = failed.reason },
+                stockInstalled = stockInstalled,
+            )
         }
     } else {
         AxScreen(
             statusBar = { ShellStatusBar(graph, title = stringResource(R.string.app_name), onTitleClick = null) },
         ) {
             when (val state = startup) {
-                is StartupState.RadioFailed -> StartupErrorContent(
-                    reason = state.reason,
-                    onRetry = retry,
-                    onContinue = { continueOffline = true },
-                )
-                StartupState.ConnectingRadio -> StartupLoadingContent(R.string.startup_connecting)
+                // During the automatic close-and-retry round the error is already being dealt with.
+                is StartupState.RadioFailed -> if (recovering) {
+                    StartupLoadingContent(R.string.startup_connecting)
+                } else {
+                    StartupErrorContent(
+                        reason = state.reason,
+                        onRetry = retry,
+                        onContinue = { continueOffline = true },
+                        stockInstalled = stockInstalled,
+                        onCloseStock = connector::closeStockAndReconnect,
+                        onOpenStockSettings = stockApp::openAppInfo,
+                    )
+                }
+                StartupState.ConnectingRadio -> ConnectingContent(connector, stockInstalled)
                 StartupState.LoadingLibrary -> StartupLoadingContent(R.string.startup_loading_library)
                 else -> StartupLoadingContent(R.string.startup_starting)
             }
         }
     }
+}
+
+/**
+ * "Connecting to the radio…". After [org.openax12.app.SLOW_CONNECT_HINT_AFTER_MS] without result a
+ * note and the "Close stock app" button appear (the timer restarts with every connection attempt).
+ */
+@Composable
+private fun ConnectingContent(connector: RadioConnector, stockInstalled: Boolean) {
+    val attempt by connector.attempt.collectAsStateWithLifecycle()
+    var elapsedMs by remember(attempt) { mutableLongStateOf(0L) }
+    LaunchedEffect(attempt, stockInstalled) {
+        if (!stockInstalled) return@LaunchedEffect
+        val start = System.nanoTime()
+        while (!showSlowConnectHint(elapsedMs, stockInstalled)) {
+            delay(1_000)
+            elapsedMs = (System.nanoTime() - start) / 1_000_000
+        }
+    }
+    StartupLoadingContent(
+        textRes = R.string.startup_connecting,
+        showStockHint = showSlowConnectHint(elapsedMs, stockInstalled),
+        onCloseStock = connector::closeStockAndReconnect,
+    )
 }
 
 /** The navigation shell: status bar, `NavDisplay` with all feature entries, bottom bar, guard and popups. */

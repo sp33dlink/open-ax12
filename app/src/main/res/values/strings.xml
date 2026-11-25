@@ -9,7 +9,11 @@
     <string name="startup_error_title">Cannot connect to the radio</string>
     <string name="startup_error_retry">Retry</string>
     <string name="startup_error_continue">Continue without radio</string>
-    <string name="startup_error_stock_hint">Another app may be using the radio\'s serial port. Force-close the stock RadioMaster app (Settings, Apps, RadioMaster, Force stop), then tap Retry. Only one app can talk to the radio at a time.</string>
+    <string name="startup_error_stock_hint">Another app may be using the radio\'s serial port, most likely the stock RadioMaster app. Tap Close stock app, or swipe it away in the recent-apps view, or use Settings, Apps, RadioMaster AX, Force stop. Then tap Retry. Only one app can talk to the radio at a time.</string>
+    <string name="startup_error_port_hint">Another app may be using the radio\'s serial port. Close any other app that talks to the radio, then tap Retry. Only one app can talk to the radio at a time.</string>
+    <string name="startup_slow_hint">Still connecting. The stock RadioMaster app may still be running in the background and blocking the radio.</string>
+    <string name="stock_close_button">Close stock app</string>
+    <string name="stock_open_settings">Open app settings</string>
     <string name="startup_error_native_hint">The radio library could not be loaded. Set the radio backend to Simulator in the system settings to try the app without a radio.</string>
     <string name="startup_error_firmware_hint">The radio firmware is not compatible with this app. Firmware updates are done in the stock RadioMaster app.</string>
     <string name="startup_error_footer">You can continue without the radio to open the model library, the settings and the help; nothing can be sent to the radio until the connection works.</string>

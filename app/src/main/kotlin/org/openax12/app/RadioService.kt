@@ -34,7 +34,7 @@ import org.openax12.core.runtime.StartupState
 /**
  * Foreground service that keeps the radio connection, the runtime engine and the audio engine
  * alive while other apps are in front (SPEC section 9, design rule 2). It runs
- * `AppGraph.start()` and shows a notification with model, link and running timers.
+ * the radio connection (`RadioConnector`, which runs `AppGraph.start()`) and shows a notification with model, link and running timers.
  *
  * **Service type: `mediaPlayback`.** The service exists to play voice, vario tones, beeps and sound
  * files; that is what the type is for. It is declared in the manifest (needed from API 34, where
@@ -60,7 +60,7 @@ class RadioService : Service() {
         graph = applicationContext.appGraph
         createChannel()
         enterForeground(buildNotification(NotificationModel()))
-        graph.scope.launch { graph.start() }
+        applicationContext.radioConnector.connect()
         observeAndNotify()
     }
 

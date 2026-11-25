@@ -18,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.openax12.app.R
+import org.openax12.app.showStockAppActions
 import org.openax12.core.designsystem.AxButton
 import org.openax12.core.designsystem.AxButtonVariant
 import org.openax12.core.designsystem.AxDialog
@@ -28,27 +29,64 @@ import org.openax12.core.designsystem.AxLoadingState
 import org.openax12.core.designsystem.AxTheme
 import org.openax12.core.radio.ConnectionError
 
-/** The hint under a connection error, or null when there is none for it. */
+/**
+ * The hint under a connection error, or null when there is none for it. With [stockInstalled] the
+ * stock-app hint names the buttons of the error screen; without the stock app on the device it
+ * only says that another app holds the port.
+ */
 @StringRes
-internal fun connectionHintRes(reason: ConnectionError): Int? = when {
-    reason.mayBeStockAppConflict -> R.string.startup_error_stock_hint
+internal fun connectionHintRes(reason: ConnectionError, stockInstalled: Boolean = true): Int? = when {
+    reason.mayBeStockAppConflict ->
+        if (stockInstalled) R.string.startup_error_stock_hint else R.string.startup_error_port_hint
     reason is ConnectionError.NativeLibraryUnavailable -> R.string.startup_error_native_hint
     reason is ConnectionError.FirmwareMismatch -> R.string.startup_error_firmware_hint
     else -> null
 }
 
-/** Spinner with the current startup step ("Connecting to the radio…"). */
+/**
+ * Spinner with the current startup step ("Connecting to the radio…"). With [showStockHint] a note
+ * and a "Close stock app" button appear below it: the connection takes suspiciously long, the
+ * stock app may still hold the serial port.
+ */
 @Composable
-internal fun StartupLoadingContent(@StringRes textRes: Int, modifier: Modifier = Modifier) {
+internal fun StartupLoadingContent(
+    @StringRes textRes: Int,
+    modifier: Modifier = Modifier,
+    showStockHint: Boolean = false,
+    onCloseStock: () -> Unit = {},
+) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        AxLoadingState(text = stringResource(textRes))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            AxLoadingState(text = stringResource(textRes))
+            if (showStockHint) {
+                Text(
+                    text = stringResource(R.string.startup_slow_hint),
+                    style = AxTheme.typography.body,
+                    color = AxTheme.colors.text,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .widthIn(max = 520.dp)
+                        .background(AxTheme.colors.surface, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                )
+                AxButton(
+                    text = stringResource(R.string.stock_close_button),
+                    onClick = onCloseStock,
+                    variant = AxButtonVariant.Primary,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
+        }
     }
 }
 
 /**
- * Full-screen startup error: what failed, the "force-close the stock RadioMaster app" hint for
- * [ConnectionError.mayBeStockAppConflict], Retry and "Continue without radio". Stateless so that
- * it can be rendered in screenshot tests.
+ * Full-screen startup error: what failed, the stock-app hint for
+ * [ConnectionError.mayBeStockAppConflict], Retry and "Continue without radio". When the error may
+ * be the stock app and it is installed ([stockInstalled]) the primary action is "Close stock app"
+ * (closes it and retries) next to "Open app settings" (its App info page, for Force stop).
+ * Stateless so that it can be rendered in screenshot tests.
  */
 @Composable
 internal fun StartupErrorContent(
@@ -56,8 +94,12 @@ internal fun StartupErrorContent(
     onRetry: () -> Unit,
     onContinue: () -> Unit,
     modifier: Modifier = Modifier,
+    stockInstalled: Boolean = false,
+    onCloseStock: () -> Unit = {},
+    onOpenStockSettings: () -> Unit = {},
 ) {
     val colors = AxTheme.colors
+    val stockActions = showStockAppActions(reason, stockInstalled)
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             AxErrorState(
@@ -66,7 +108,7 @@ internal fun StartupErrorContent(
                 actionLabel = null,
                 icon = AxIcons.Error,
             )
-            connectionHintRes(reason)?.let { hint ->
+            connectionHintRes(reason, stockInstalled)?.let { hint ->
                 Text(
                     text = stringResource(hint),
                     style = AxTheme.typography.body,
@@ -93,7 +135,13 @@ internal fun StartupErrorContent(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 AxButton(text = stringResource(R.string.startup_error_continue), onClick = onContinue, variant = AxButtonVariant.Outlined)
-                AxButton(text = stringResource(R.string.startup_error_retry), onClick = onRetry, variant = AxButtonVariant.Primary)
+                if (stockActions) {
+                    AxButton(text = stringResource(R.string.stock_open_settings), onClick = onOpenStockSettings, variant = AxButtonVariant.Outlined)
+                    AxButton(text = stringResource(R.string.startup_error_retry), onClick = onRetry, variant = AxButtonVariant.Outlined)
+                    AxButton(text = stringResource(R.string.stock_close_button), onClick = onCloseStock, variant = AxButtonVariant.Primary)
+                } else {
+                    AxButton(text = stringResource(R.string.startup_error_retry), onClick = onRetry, variant = AxButtonVariant.Primary)
+                }
             }
         }
     }
@@ -101,7 +149,12 @@ internal fun StartupErrorContent(
 
 /** Dialog shown over the running UI when the connection breaks after a successful start. */
 @Composable
-internal fun ConnectionLostDialog(reason: ConnectionError, onRetry: () -> Unit, onDismiss: () -> Unit) {
+internal fun ConnectionLostDialog(
+    reason: ConnectionError,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+    stockInstalled: Boolean = true,
+) {
     AxDialog(
         onDismissRequest = onDismiss,
         title = stringResource(R.string.connection_lost_title),
@@ -114,6 +167,6 @@ internal fun ConnectionLostDialog(reason: ConnectionError, onRetry: () -> Unit, 
         },
     ) {
         AxDialogMessage(reason.message)
-        connectionHintRes(reason)?.let { AxDialogMessage(stringResource(it)) }
+        connectionHintRes(reason, stockInstalled)?.let { AxDialogMessage(stringResource(it)) }
     }
 }

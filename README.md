@@ -41,8 +41,10 @@ latest successful run of the [Android workflow](../../actions/workflows/android.
 (artifact `open-ax12-dev-apk`).
 
 1. Enable developer options and USB debugging on the AX12 and connect it to your computer.
-2. Force-stop the stock RadioMaster app (Android Settings → Apps → RadioMaster AX → Force stop).
-   Only one app can use the radio's serial port.
+2. Only one app can use the radio's serial port. open-ax12 closes the stock RadioMaster app itself
+   before it connects (System → App → "Close the stock app automatically", on by default). If it
+   cannot connect, the error screen has a "Close stock app" button; you can also swipe the stock app
+   away in the recent-apps view or use Android Settings → Apps → RadioMaster AX → Force stop.
 3. Install and start:
 
    ```bash

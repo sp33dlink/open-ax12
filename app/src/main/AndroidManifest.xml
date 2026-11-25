@@ -18,11 +18,17 @@
     <!-- Runtime permission from API 33; requested only behind an SDK_INT check. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Normal permission (no prompt): closes the stock RadioMaster app's background process, which
+         otherwise holds the radio's serial port. See StockApp. -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Package visibility (API 30+): detecting the installed text-to-speech engine. -->
     <queries>
+        <!-- Package visibility (API 30+): is the stock RadioMaster app installed? -->
+        <package android:name="com.Flyshark.RadioMasterAX" />
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
