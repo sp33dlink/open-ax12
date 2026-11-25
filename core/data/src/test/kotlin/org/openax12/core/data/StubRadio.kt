@@ -157,7 +157,23 @@ class StubRadio(private val sdkDir: File, var importNeedsExistingTarget: Boolean
     override suspend fun getCurrentModelIndex(): Int? =
         currentFile?.let { path -> getModels().firstOrNull { it.filePath == path }?.index?.toInt() }
 
+    /**
+     * The next [collidingCreates] calls of [createModelInfo] return the path of the previous call
+     * again, like the real SDK that names model files after the current second.
+     */
+    var collidingCreates: Int = 0
+
+    private var lastCreated: ModelInfo? = null
+
     override suspend fun createModelInfo(): ModelInfo? {
+        lastCreated?.takeIf { collidingCreates > 0 }?.let {
+            collidingCreates--
+            return it
+        }
+        return newTarget().also { lastCreated = it }
+    }
+
+    private fun newTarget(): ModelInfo {
         val index = nextIndex++
         return ModelInfo(name = "Model $index", filePath = File(sdkDir, "model_$index.json").path, index = index)
     }

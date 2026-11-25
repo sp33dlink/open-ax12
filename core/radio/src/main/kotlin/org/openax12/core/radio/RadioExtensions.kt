@@ -65,11 +65,27 @@ suspend fun Radio.findDisabledDualRateSlot(channel: Int): DualRateSlot? =
  * that interprets that value (assumption 15). The value is matched against [ModelInfo.index] of
  * [Radio.getModels] first; if no model has that index it is taken as the position in the list.
  * Null if the SDK reported no current model or neither interpretation applies.
+ *
+ * [ModelInfo.index] is **not unique** on the real radio (models copied from one another keep the
+ * `modelIdx` of the original; observed on the device). When several models carry the raw value
+ * the choice is made without guessing "the first one": the one stored in [preferredFile] (the file
+ * the caller believes is current), else the one whose list position equals the raw value, else the
+ * first.
+ *
+ * @param preferredFile SDK file of the model the caller currently regards as current, if any
  */
-suspend fun Radio.getCurrentModel(): ModelInfo? {
+suspend fun Radio.getCurrentModel(preferredFile: String? = null): ModelInfo? {
     val raw = getCurrentModelIndex() ?: return null
     val models = getModels()
-    return models.firstOrNull { it.index == raw.toLong() } ?: models.getOrNull(raw)
+    val byIndex = models.filter { it.index == raw.toLong() }
+    val byPosition = models.getOrNull(raw)
+    return when {
+        byIndex.isEmpty() -> byPosition
+        byIndex.size == 1 -> byIndex.first()
+        else -> byIndex.firstOrNull { preferredFile != null && it.filePath == preferredFile }
+            ?: byPosition?.takeIf { it in byIndex }
+            ?: byIndex.first()
+    }
 }
 
 /**

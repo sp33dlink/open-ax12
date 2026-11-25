@@ -37,15 +37,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -317,9 +321,18 @@ fun DoubleConfirmDialog(
 }
 
 /**
- * Button that must be held for [holdMillis] before it fires; a fill shows the progress and
- * releasing early cancels. Used as the last step of destructive confirmations and for the touch
- * lock.
+ * Button that must be held for [holdMillis] before it fires. A red outline marks it as a
+ * destructive action; while it is held the inside fills with [color] from left to right and the
+ * action fires when it is full. Releasing early drains the fill again.
+ *
+ * Accessibility: the button announces [contentDescription] (default: [text]). Because an
+ * accessibility service cannot hold a button, activating it through the service (semantic click)
+ * fires [onConfirmed] at once; touch input always has to hold.
+ *
+ * @param outlined false draws the older solid look (dimmed fill, no outline) used by the touch lock
+ * @param contentDescription spoken label, defaults to [text]
+ * @param progressOverride fixes the fill to this fraction (0..1) and disables the hold; for
+ *   previews and screenshots
  */
 @Composable
 fun HoldToConfirmButton(
@@ -331,51 +344,187 @@ fun HoldToConfirmButton(
     contentColor: Color = Color.White,
     icon: ImageVector? = null,
     height: Dp = AxDimens.ControlHeight,
+    outlined: Boolean = true,
+    contentDescription: String = text,
+    progressOverride: Float? = null,
 ) {
     val progress = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     val currentOnConfirmed by rememberUpdatedState(onConfirmed)
-    val radius = AxTheme.shapes.control
-    Box(
+    HoldToConfirmFace(
+        text = text,
+        progress = progressOverride ?: progress.value,
         modifier = modifier
             .defaultMinSize(minWidth = 64.dp, minHeight = AxDimens.MinTouch)
-            .pointerInput(holdMillis) {
+            .pointerInput(holdMillis, progressOverride) {
+                if (progressOverride != null) return@pointerInput
                 detectTapGestures(
                     onPress = {
                         val job = scope.launch {
-                            progress.snapTo(0f)
-                            progress.animateTo(1f, tween(durationMillis = holdMillis, easing = LinearEasing))
+                            val remaining = ((1f - progress.value) * holdMillis).toInt().coerceAtLeast(1)
+                            progress.animateTo(1f, tween(durationMillis = remaining, easing = LinearEasing))
                             currentOnConfirmed()
                         }
                         tryAwaitRelease()
                         if (progress.value < 1f) {
                             job.cancel()
-                            scope.launch { progress.animateTo(0f, tween(durationMillis = 160)) }
+                            scope.launch { progress.animateTo(0f, tween(durationMillis = 220)) }
                         }
                     },
                 )
             }
-            .semantics { role = Role.Button },
-        contentAlignment = Alignment.Center,
-    ) {
-        Row(
-            modifier = Modifier
-                .height(height)
-                .clip(RoundedCornerShape(radius))
-                .drawBehind {
-                    drawRect(color.copy(alpha = 0.55f))
-                    drawRect(color, size = Size(size.width * progress.value, size.height))
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                this.contentDescription = contentDescription
+                // Accessibility services cannot hold a button: their activation is the alternative.
+                onClick(label = contentDescription) {
+                    currentOnConfirmed()
+                    true
                 }
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
+            },
+        color = color,
+        contentColor = contentColor,
+        icon = icon,
+        height = height,
+        outlined = outlined,
+    )
+}
+
+/**
+ * The look of [HoldToConfirmButton] for a given fill fraction, without any input handling.
+ *
+ * With [outlined] the button is an outline in [color] with the label in [color]; the left
+ * [progress] part is filled with [color] and the label there is drawn in [contentColor], so the
+ * text stays readable at every fill level.
+ *
+ * @param progress fill fraction, 0 (empty) to 1 (full)
+ */
+@Composable
+fun HoldToConfirmFace(
+    text: String,
+    progress: Float,
+    modifier: Modifier = Modifier,
+    color: Color = AxTheme.colors.error,
+    contentColor: Color = Color.White,
+    icon: ImageVector? = null,
+    height: Dp = AxDimens.ControlHeight,
+    outlined: Boolean = true,
+) {
+    val fraction = progress.coerceIn(0f, 1f)
+    val radius = AxTheme.shapes.control
+    val border = AxTheme.shapes.border + 0.5.dp
+    @Composable
+    fun Label(tint: Color) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             if (icon != null) {
-                AxIcon(icon = icon, contentDescription = null, tint = contentColor, size = 18.dp)
+                AxIcon(icon = icon, contentDescription = null, tint = tint, size = 18.dp)
                 Spacer(Modifier.width(6.dp))
             }
-            Text(text = text, style = AxTheme.typography.button, color = contentColor, maxLines = 1)
+            Text(text = text, style = AxTheme.typography.button, color = tint, maxLines = 1)
         }
+    }
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        if (!outlined) {
+            Box(
+                modifier = Modifier
+                    .height(height)
+                    .clip(RoundedCornerShape(radius))
+                    .drawBehind {
+                        drawRect(color.copy(alpha = 0.55f))
+                        drawRect(color, size = Size(size.width * fraction, size.height))
+                    }
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) { Label(contentColor) }
+        } else {
+            Box(
+                modifier = Modifier
+                    .height(height)
+                    .clip(RoundedCornerShape(radius))
+                    .drawBehind {
+                        drawRect(color, size = Size(size.width * fraction, size.height))
+                        val b = border.toPx()
+                        drawRoundRect(
+                            color = color,
+                            topLeft = Offset(b / 2f, b / 2f),
+                            size = Size(size.width - b, size.height - b),
+                            cornerRadius = CornerRadius(radius.toPx()),
+                            style = Stroke(width = b),
+                        )
+                    }
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Label(color)
+                // The same label in the fill's contrast colour, visible only over the filled part.
+                Box(
+                    modifier = Modifier.drawWithContent {
+                        clipRect(left = 0f, top = 0f, right = size.width * fraction, bottom = size.height) {
+                            this@drawWithContent.drawContent()
+                        }
+                    },
+                ) { Label(contentColor) }
+            }
+        }
+    }
+}
+
+/**
+ * Confirmation of a destructive action in one step: the message and the consequence, a cancel
+ * button and a [HoldToConfirmButton] that must be held until it is full.
+ *
+ * @param message what happens
+ * @param consequence optional second paragraph ("This cannot be undone.")
+ * @param confirmLabel label of the hold button ("Hold to delete")
+ * @param confirmDescription spoken label of the hold button, defaults to [confirmLabel]
+ * @param fillOverride fixes the fill of the hold button (previews and screenshots)
+ */
+@Composable
+fun HoldConfirmDialog(
+    title: String,
+    message: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    consequence: String? = null,
+    confirmDescription: String = confirmLabel,
+    dismissLabel: String = stringResource(R.string.ax_cancel),
+    fillOverride: Float? = null,
+) {
+    val colors = AxTheme.colors
+    AxDialog(
+        onDismissRequest = onDismiss,
+        modifier = modifier,
+        title = title,
+        icon = AxIcons.Warning,
+        iconTint = colors.error,
+        dismissOnOutsideClick = false,
+        buttons = {
+            AxButton(text = dismissLabel, onClick = onDismiss, variant = AxButtonVariant.Text)
+            HoldToConfirmButton(
+                text = confirmLabel,
+                onConfirmed = onConfirm,
+                contentDescription = confirmDescription,
+                progressOverride = fillOverride,
+            )
+        },
+    ) {
+        AxDialogMessage(message)
+        if (consequence != null) {
+            Text(
+                text = consequence,
+                style = AxTheme.typography.body,
+                color = colors.text,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+        Text(
+            text = stringResource(R.string.ax_hold_hint),
+            style = AxTheme.typography.labelSmall,
+            color = colors.textMuted,
+            modifier = Modifier.padding(top = 10.dp),
+        )
     }
 }
 
