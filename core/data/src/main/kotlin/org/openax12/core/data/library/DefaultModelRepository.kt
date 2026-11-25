@@ -4,6 +4,8 @@ import android.net.Uri
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.time.Instant
+import java.time.ZoneId
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -69,6 +71,8 @@ internal sealed interface FolderRestore {
  *
  * @param privateDir a directory in the app's private storage (created on demand)
  * @param scope used only to watch the radio for device reads (see `deviceInSync`)
+ * @param importedModelName name (from the app's string resources) of a model that was taken over from
+ *   the radio and matches nothing in the library; gets the local date as `date`
  */
 internal class DefaultModelRepository(
     private val radio: Radio,
@@ -80,6 +84,7 @@ internal class DefaultModelRepository(
     private val dispatchers: AppDispatchers,
     private val appVersion: String = "",
     private val wallClock: () -> Long = System::currentTimeMillis,
+    private val importedModelName: (date: String) -> String = { date -> "Imported from radio $date" },
 ) : ModelRepository {
 
     private val mutex = Mutex()
@@ -667,10 +672,20 @@ internal class DefaultModelRepository(
 
         // 1. Match the SDK's models with what the app knows.
         val claimed = LinkedHashMap<String, Pair<SyncEntry, ModelInfo>>()
+        // A fresh SDK directory (app data cleared, new install): none of the files the app knew exists
+        // any more. The SDK then makes a "Model-<number>" file from the radio's MCU, which usually is
+        // a library model that has to be recognised instead of being added a second time.
+        val freshSdk = sdkList.none { model -> old.entries.any { it.sdkFile == model.filePath } }
+        val adoptedFolders = HashSet<String>()
         for (model in sdkList) {
             if (model.filePath.isEmpty()) continue
             val known = old.entries.firstOrNull { it.id !in claimed && it.sdkFile == model.filePath }
                 ?: old.entries.firstOrNull { e -> e.id !in claimed && e.name == model.name && sdkList.none { it.filePath == e.sdkFile } }
+            if (known == null && freshSdk && modelsDir != null) {
+                val adopted = adoptFreshSdkModel(model, modelsDir, old, claimed.keys, adoptedFolders)
+                claimed[adopted.first.id] = adopted
+                continue
+            }
             val entry = known?.copy(name = model.name, sdkFile = model.filePath, modelMatch = model.modelMatch)
                 ?: SyncEntry(id = newId(), name = model.name, folder = "", sdkFile = model.filePath, modelMatch = model.modelMatch)
             claimed[entry.id] = entry to model
@@ -764,6 +779,83 @@ internal class DefaultModelRepository(
             ),
         )
     }
+
+    /**
+     * Gives an SDK model of a fresh SDK directory its library entry.
+     *
+     * The model is compared with the library's folders (configuration only, see [ModelContent]).
+     * On a match the SDK file is linked to that folder, takes over the library name and the folder
+     * is not imported a second time. Without a match a new entry is made, called "Imported from
+     * radio <date>" when the SDK gave it one of its generated "Model-<number>" names.
+     *
+     * @param claimedIds entries already claimed in this reconcile run
+     * @param adoptedFolders folders already linked to an SDK model in this run (updated here)
+     */
+    private suspend fun adoptFreshSdkModel(
+        model: ModelInfo,
+        modelsDir: File,
+        old: SyncIndex,
+        claimedIds: Set<String>,
+        adoptedFolders: MutableSet<String>,
+    ): Pair<SyncEntry, ModelInfo> {
+        val folder = matchLibraryFolder(model, modelsDir, old, adoptedFolders)
+        if (folder != null) {
+            adoptedFolders += ModelNames.key(folder.name)
+            val lost = old.entries.firstOrNull { it.id !in claimedIds && it.folder.equals(folder.name, ignoreCase = true) }
+            val info = enforceName(model.filePath, folder.name) ?: model
+            // Stamped with the folder's current files: the SDK's file differs from the reference copy only
+            // by its stamps, which must not be reported as an external modification.
+            val entry = stamp(
+                (lost ?: SyncEntry(id = newId(), name = folder.name, folder = folder.name, sdkFile = info.filePath))
+                    .copy(name = folder.name, folder = folder.name, sdkFile = info.filePath, modelMatch = info.modelMatch),
+                folder,
+            )
+            return entry to info
+        }
+        val generated = GENERATED_SDK_NAME.matches(model.name)
+        val name = if (generated) {
+            val taken = old.entries.flatMap { listOf(it.name, it.folder) } + modelsDir.list().orEmpty()
+            ModelNames.unique(ModelNames.sanitize(importedModelName(importedDate(wallClock()))), taken)
+        } else {
+            model.name
+        }
+        val info = if (name != model.name) enforceName(model.filePath, name) ?: model else model
+        return SyncEntry(id = newId(), name = info.name, folder = "", sdkFile = info.filePath, modelMatch = info.modelMatch) to info
+    }
+
+    /**
+     * The library folder that holds the model of [model]'s SDK file, or null. Folders of earlier
+     * entries come first, then those with the most user data (snapshots, picture, extras), then
+     * by name; so of several identical copies the original is preferred.
+     */
+    private suspend fun matchLibraryFolder(model: ModelInfo, modelsDir: File, old: SyncIndex, taken: Set<String>): File? {
+        val export = exportSdkFile(model.filePath) ?: return null
+        try {
+            val wanted = ModelContent.fingerprint(export) ?: return null
+            return modelsDir.listFiles().orEmpty()
+                .filter { dir ->
+                    dir.isDirectory && !dir.name.startsWith('.') && ModelNames.key(dir.name) !in taken &&
+                        old.ignoredFolders.none { it.equals(dir.name, ignoreCase = true) } &&
+                        ModelContent.fingerprint(File(dir, SnapshotStore.MODEL_FILE)) == wanted
+                }
+                .sortedWith(
+                    compareByDescending<File> { dir -> old.entries.any { it.folder.equals(dir.name, ignoreCase = true) } }
+                        .thenByDescending(::userDataScore)
+                        .thenBy { it.name.lowercase() },
+                )
+                .firstOrNull()
+        } finally {
+            export.delete()
+        }
+    }
+
+    private fun userDataScore(folder: File): Int =
+        (if (File(folder, SnapshotStore.DIR_NAME).isDirectory) 4 else 0) +
+            (if (File(folder, MODEL_PICTURE_FILE_NAME).isFile) 2 else 0) +
+            (if (ExtrasStore.file(folder).isFile) 1 else 0)
+
+    private fun importedDate(timeMs: Long): String =
+        Instant.ofEpochMilli(timeMs).atZone(ZoneId.systemDefault()).toLocalDate().toString()
 
     /** Synchronises one SDK model with its library folder; returns the entry with fresh stamps. */
     private suspend fun syncPair(entry: SyncEntry, info: ModelInfo, modelsDir: File, pendingId: String?, scratch: Scratch): SyncEntry {
@@ -1481,6 +1573,9 @@ internal class DefaultModelRepository(
         private const val NEW_TARGET_WAIT_MS = 1_100L
 
         /** `modelMatch` is an unsigned 32-bit field in the SDK. */
+        /** The names the SDK gives a model it creates itself ("Model-233"). */
+        private val GENERATED_SDK_NAME = Regex("Model-\\d+")
+
         private const val MAX_MODEL_MATCH = 0xFFFF_FFFFL
 
         /** Extras of a model that has no `extras.json` (a stock-app import). */

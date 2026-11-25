@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Name of a model taken over from the radio that matches no model of the library; %1$s = date, e.g. 2026-11-25. Keep it short (model names are limited to 32 characters). -->
+    <string name="library_imported_from_radio">Imported from radio %1$s</string>
+</resources>
