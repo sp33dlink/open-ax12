@@ -66,3 +66,41 @@ fun StartupConnectingScreenshot() {
 fun StartupConnectingSlowScreenshot() {
     StartupFrame { StartupLoadingContent(R.string.startup_connecting, showStockHint = true, onCloseStock = {}) }
 }
+
+@Composable
+private fun OnboardingFrame(page: Int, stockInstalled: Boolean = true) {
+    Ax12Theme {
+        OnboardingContent(
+            page = page,
+            onPageChange = {},
+            stockInstalled = stockInstalled,
+            closeStockApp = true,
+            onCloseStockAppChange = {},
+            startOnBoot = true,
+            onStartOnBootChange = {},
+            onFinish = {},
+            statusBar = { AxStatusBar(title = "OpenAX12", linkQuality = { 0 }, rxVoltage = { 0f }, txVoltage = { 7.9f }, dateTime = "2026-11-19  10:00") },
+        )
+    }
+}
+
+@PreviewTest
+@Ax12Preview
+@Composable
+fun OnboardingWelcomeScreenshot() {
+    OnboardingFrame(page = 0)
+}
+
+@PreviewTest
+@Ax12Preview
+@Composable
+fun OnboardingChoicesScreenshot() {
+    OnboardingFrame(page = 1)
+}
+
+@PreviewTest
+@Ax12Preview
+@Composable
+fun OnboardingChoicesNoStockScreenshot() {
+    OnboardingFrame(page = 1, stockInstalled = false)
+}

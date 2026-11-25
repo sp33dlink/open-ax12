@@ -62,6 +62,10 @@ internal fun AppPanel(state: SettingsUiState, onEvent: (SettingsEvent) -> Unit) 
             AxSettingRow(title = stringResource(R.string.app_close_stock), description = stringResource(R.string.app_close_stock_desc), icon = AxIcons.Link) {
                 AxSwitch(app.closeStockApp, { value -> onEvent(SettingsEvent.Update { it.copy(closeStockApp = value) }) })
             }
+            AxDivider()
+            AxSettingRow(title = stringResource(R.string.app_start_on_boot), description = stringResource(R.string.app_start_on_boot_desc), icon = AxIcons.Play) {
+                AxSwitch(app.startOnBoot, { value -> onEvent(SettingsEvent.Update { it.copy(startOnBoot = value) }) })
+            }
         }
 
         SettingsGroup(stringResource(R.string.group_touch_lock)) {

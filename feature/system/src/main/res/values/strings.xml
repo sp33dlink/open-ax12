@@ -148,6 +148,8 @@
     <string name="app_keep_screen_on_desc">Prevents the display from switching off while the app is open</string>
     <string name="app_close_stock">Close the stock app automatically</string>
     <string name="app_close_stock_desc">Closes the stock RadioMaster app before connecting; it blocks the radio while it runs in the background</string>
+    <string name="app_start_on_boot">Start open-ax12 when the radio boots</string>
+    <string name="app_start_on_boot_desc">Opens this app a few seconds after the radio has started, after the stock app, and connects to the radio</string>
     <string name="lock_hold">Unlock hold time</string>
     <string name="lock_hold_desc">How long the unlock control must be held</string>
     <string name="lock_auto">Automatic lock</string>

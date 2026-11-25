@@ -26,4 +26,25 @@ class AppSettingsTest {
         assertFalse(decoded.closeStockApp)
         assertEquals(original, decoded)
     }
+
+    @Test
+    fun `starting on boot is on and the onboarding is open by default`() {
+        assertTrue(AppSettings().startOnBoot)
+        assertFalse(AppSettings().onboardingDone)
+    }
+
+    @Test
+    fun `settings stored before the onboarding existed show it once and start on boot`() {
+        val decoded = Ax12Json.decodeFromString(AppSettings.serializer(), """{"schemaVersion":1,"closeStockApp":false}""")
+        assertFalse(decoded.onboardingDone)
+        assertTrue(decoded.startOnBoot)
+        assertFalse(decoded.closeStockApp)
+    }
+
+    @Test
+    fun `the boot and onboarding choices survive a round trip`() {
+        val original = AppSettings(startOnBoot = false, onboardingDone = true)
+        val decoded = Ax12Json.decodeFromString(AppSettings.serializer(), Ax12Json.encodeToString(AppSettings.serializer(), original))
+        assertEquals(original, decoded)
+    }
 }

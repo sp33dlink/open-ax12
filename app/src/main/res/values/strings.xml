@@ -20,6 +20,21 @@
     <string name="connection_lost_title">Radio connection lost</string>
     <string name="connection_lost_dismiss">Dismiss</string>
 
+    <!-- Onboarding (first start) -->
+    <string name="onboarding_welcome_title">Welcome to open-ax12</string>
+    <string name="onboarding_welcome_text">open-ax12 is an open app for the RadioMaster AX12 that keeps the stock look and adds EdgeTX-style functions such as logical switches, special functions, flight modes and voice.</string>
+    <string name="onboarding_exclusive_text">The stock RadioMaster app and open-ax12 cannot use the radio at the same time. Only one of them can be connected.</string>
+    <string name="onboarding_connecting_note">The connection to the radio is being set up in the background.</string>
+    <string name="onboarding_choices_title">Two choices</string>
+    <string name="onboarding_close_stock">Always close the stock RadioMaster app</string>
+    <string name="onboarding_close_stock_desc">Closes it before connecting so that it cannot block the radio</string>
+    <string name="onboarding_start_on_boot">Start open-ax12 when the radio boots</string>
+    <string name="onboarding_start_on_boot_desc">Opens this app a few seconds after the radio has started</string>
+    <string name="onboarding_changeable">You can change both choices later in System, App.</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_back">Back</string>
+    <string name="onboarding_get_started">Get started</string>
+
     <!-- Foreground service notification -->
     <string name="notification_channel_name">Radio connection</string>
     <string name="notification_channel_description">Shown while the app keeps the radio connection, voice and logging running.</string>

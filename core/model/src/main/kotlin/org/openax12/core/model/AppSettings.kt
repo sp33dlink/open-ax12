@@ -64,6 +64,10 @@ data class TouchLockBehaviour(
  * @property closeStockApp close the stock RadioMaster app (which blocks the radio's serial port
  *   while its process lives) before connecting to the radio, and once more and retry when the
  *   connection fails in the way a running stock app causes
+ * @property startOnBoot start open-ax12 (service, connection, screen in front) when the radio has
+ *   booted; it waits for the stock app, which also starts at boot, to come up first
+ * @property onboardingDone the first-start onboarding was finished; installs upgraded from before
+ *   the onboarding existed have no stored value and see it once
  */
 @Serializable
 data class AppSettings(
@@ -81,6 +85,8 @@ data class AppSettings(
     val logging: Boolean = false,
     val logIntervalMs: Int = 200,
     val closeStockApp: Boolean = true,
+    val startOnBoot: Boolean = true,
+    val onboardingDone: Boolean = false,
 ) {
     /** Volume of [category] in percent (0..100). */
     fun volumeOf(category: AudioCategory): Int = (volumes[category] ?: 100).coerceIn(0, 100)

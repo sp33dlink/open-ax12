@@ -45,6 +45,9 @@ latest successful run of the [Android workflow](../../actions/workflows/android.
    before it connects (System → App → "Close the stock app automatically", on by default). If it
    cannot connect, the error screen has a "Close stock app" button; you can also swipe the stock app
    away in the recent-apps view or use Android Settings → Apps → RadioMaster AX → Force stop.
+   The first start shows a short onboarding with this choice and "Start open-ax12 when the radio
+   boots" (also in System → App); with the second on, open-ax12 comes up about 15 s after the
+   stock app has started at boot.
 3. Install and start:
 
    ```bash
