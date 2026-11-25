@@ -38,6 +38,7 @@ import org.openax12.core.model.WidgetOptions
 import org.openax12.core.model.WidgetType
 import org.openax12.core.model.Sensors
 import org.openax12.core.model.SwitchCondition
+import org.openax12.core.model.SwitchPosition
 import org.openax12.core.model.CompareOp
 import org.openax12.core.model.WorkingConfig
 import org.openax12.core.widgets.FakeWidgetDataSource
@@ -85,7 +86,7 @@ private fun state(
     name: String = "Sunseeker 3.4",
 ) = buildHomeState(ModelEntry(id = "m1", name = name, type = extras.modelType, isCurrent = true), extras, config)
 
-/** Live frame of a glider on the field: throttle closed, a little elevator, flaps switch up. */
+/** Live frame of a glider on the field: throttle closed, a little elevator, switches in all three positions (SA, SF up; SC, SD mid; SB, SE down). */
 private fun frame(
     left: Pair<Int, Int> = 0 to -100,
     right: Pair<Int, Int> = 35 to 20,
@@ -103,12 +104,12 @@ private fun frame(
         (if (mode2) SourceId.THR else SourceId.ELE) to left.second,
         (if (mode2) SourceId.ELE else SourceId.THR) to right.second,
         SourceId.AIL to right.first,
-        SourceId.SA to -100,
-        SourceId.SB to -100,
-        SourceId.SC to 0,
-        SourceId.SD to 0,
-        SourceId.SE to 100,
-        SourceId.SF to 100,
+        SourceId.SA to SwitchPosition.UP.logic,
+        SourceId.SB to SwitchPosition.DOWN.logic,
+        SourceId.SC to SwitchPosition.MID.logic,
+        SourceId.SD to SwitchPosition.MID.logic,
+        SourceId.SE to SwitchPosition.DOWN.logic,
+        SourceId.SF to SwitchPosition.UP.logic,
         SourceId.SP to SpButtonBar.logicOf(spButton),
         SourceId.slider(1) to -100,
         SourceId.slider(2) to 84,

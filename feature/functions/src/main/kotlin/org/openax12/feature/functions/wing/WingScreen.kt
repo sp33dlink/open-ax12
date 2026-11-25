@@ -39,6 +39,7 @@ import org.openax12.core.model.FlapControl
 import org.openax12.core.model.ModelType
 import org.openax12.core.model.SourceId
 import org.openax12.core.model.SwitchCondition
+import org.openax12.core.model.SwitchPosition
 import org.openax12.core.model.TailType
 import org.openax12.core.model.WingConfig
 import org.openax12.core.model.WingType
@@ -512,7 +513,7 @@ private fun ButterflyPage(draft: WingConfig, pickers: PickerData, edit: ((WingCo
                         editButterfly {
                             it.copy(
                                 activeWhen = if (on) {
-                                    SwitchCondition(pickers.switches.firstOrNull()?.id ?: SourceId.SA, CompareOp.EQUAL, 100)
+                                    SwitchCondition.at(pickers.switches.firstOrNull()?.id ?: SourceId.SA, SwitchPosition.DOWN)
                                 } else {
                                     SwitchCondition.NONE
                                 },

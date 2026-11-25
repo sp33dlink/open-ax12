@@ -269,10 +269,10 @@ class FakeRadioTest {
         sim.setStick(SourceId.ELE, 400)
         sim.setPot(SourceId.slider(1), -30)
         sim.setSource(SourceId.SA, 80)
-        assertEquals(-100, sim.sourceValue(SourceId.SF))
+        assertEquals(SwitchPosition.UP.logic, sim.sourceValue(SourceId.SF))
         assertEquals(50, sim.sourceValue(SourceId.AIL))
         assertEquals(100, sim.sourceValue(SourceId.ELE))
-        assertEquals(100, sim.sourceValue(SourceId.SA))
+        assertEquals(SwitchPosition.UP.logic, sim.sourceValue(SourceId.SA))
         radio.advance(40)
         assertEquals(-30, radio.live.value.channel(5))
 
@@ -292,13 +292,14 @@ class FakeRadioTest {
         val line = radio.addMix(8, SourceId.SA)!!
         assertTrue(radio.setMix(line.copy(slowUpMs = 2000, slowDownMs = 2000)))
         radio.advance(40)
-        assertEquals(-100, radio.live.value.channel(8))
+        // SA rests up (+100); moving it down (-100) ramps the channel over the slow time.
+        assertEquals(100, radio.live.value.channel(8))
 
         sim.setSwitch(SourceId.SA, SwitchPosition.DOWN)
         radio.advance(1000)
         assertEquals(0, radio.live.value.channel(8))
         radio.advance(1000)
-        assertEquals(100, radio.live.value.channel(8))
+        assertEquals(-100, radio.live.value.channel(8))
     }
 
     // ---- setters ---------------------------------------------------------------------------

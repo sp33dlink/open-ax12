@@ -113,7 +113,8 @@ class FlightModeEditsTest {
     fun multirotorPresetPutsTheModeValueOnCh5AndCompilesCleanly() {
         val preset = FlightModeEdits.preset(ModelType.MULTIROTOR, SourceId.SC, NAMES)
         assertEquals(listOf("Angle", "Horizon", "Acro"), preset.modes.map { it.name })
-        assertEquals(listOf(-100, 0, 100), preset.modes.map { it.offsets[FlightModeEdits.MULTIROTOR_MODE_CHANNEL] })
+        // CH5 follows the switch value: up +100, mid 0, down -100 (the order of the modes is up / mid / down).
+        assertEquals(listOf(100, 0, -100), preset.modes.map { it.offsets[FlightModeEdits.MULTIROTOR_MODE_CHANNEL] })
         assertTrue(FlightModeCompiler.validate(preset, testConfig()).isEmpty())
         val plan = FlightModeCompiler.compile(preset, testConfig())
         assertEquals(1, plan.mixes.size)

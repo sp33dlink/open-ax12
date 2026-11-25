@@ -193,7 +193,7 @@ class LiveSnapshot(
  * A condition on one input source, the common shape of every SDK "enable switch" triple
  * (`switchIdx` / `swCmpType` / `swCmpVal`). Compared against the source's logic value in percent.
  *
- * Examples: `SwitchCondition(SourceId.SA, CompareOp.EQUAL, 100)` = "SA down";
+ * Examples: `SwitchCondition(SourceId.SA, CompareOp.EQUAL, -100)` = "SA down";
  * `SwitchCondition(SourceId.THR, CompareOp.GREATER, -90)` = "throttle above −90 %".
  */
 @Serializable

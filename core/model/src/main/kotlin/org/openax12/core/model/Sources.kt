@@ -228,20 +228,27 @@ value class SourceId(val index: Int) : Comparable<SourceId> {
 }
 
 /**
- * Position of a 2- or 3-position switch. Assumption 3: the firmware reports the position as a
- * logic value of −100 (up) / 0 (mid) / +100 (down).
+ * Position of a 2- or 3-position switch. Assumption 3 (verified on the AX12 on 2026-11-25): the
+ * firmware reports the physical position as a logic value of +100 (up) / 0 (mid) / −100 (down).
+ *
+ * The declaration order (up, mid, down) is the order the UI lists the positions in; it is **not**
+ * ascending in [logic]. Code that needs ascending x values (custom curves) uses [byLogic].
+ * Serialised by name, so stored models keep their physical meaning.
  */
 @Serializable
 enum class SwitchPosition(val logic: Int) {
-    UP(-100),
+    UP(100),
     MID(0),
-    DOWN(100);
+    DOWN(-100);
 
     companion object {
+        /** All positions ordered by ascending [logic] value (down, mid, up). */
+        val byLogic: List<SwitchPosition> = entries.sortedBy { it.logic }
+
         /** Maps a logic value to the nearest position (thresholds at ±50). */
         fun fromLogic(logic: Int): SwitchPosition = when {
-            logic < -50 -> UP
-            logic > 50 -> DOWN
+            logic > 50 -> UP
+            logic < -50 -> DOWN
             else -> MID
         }
     }

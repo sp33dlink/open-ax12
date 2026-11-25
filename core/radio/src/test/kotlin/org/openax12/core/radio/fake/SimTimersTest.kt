@@ -167,7 +167,7 @@ class SimTimersTest {
         run(config, 2000)
         assertEquals(2, timers.timerStates[0].count)
 
-        logic[Sources.SA] = 100
+        logic[Sources.SA] = SwitchPosition.DOWN.logic
         frame(config)
         assertEquals(0, timers.timerStates[0].count)
         assertTrue(notifies().any { it.code == TimerAlertMode.NOTIFY_RESET })
@@ -212,9 +212,9 @@ class SimTimersTest {
     // ---- counters --------------------------------------------------------------------------
 
     private fun click(config: SimConfig) {
-        logic[Sources.SH] = 100
+        logic[Sources.SH] = SwitchPosition.DOWN.logic
         frame(config)
-        logic[Sources.SH] = -100
+        logic[Sources.SH] = SwitchPosition.UP.logic
         frame(config)
     }
 
@@ -243,7 +243,7 @@ class SimTimersTest {
         events.clear()
         assertTrue(timers.reset(config, 3, events::add))
         assertEquals(TimerNotify(3, running = false, code = TimerAlertMode.NOTIFY_RESET, count = 0), notifies().single())
-        logic[Sources.SH] = 100
+        logic[Sources.SH] = SwitchPosition.DOWN.logic
         run(config, 1000)
         assertEquals(1, timers.counterStates[0].count)
         assertTrue(timers.counterStates[0].running)
@@ -275,7 +275,7 @@ class SimTimersTest {
     @Test
     fun switchThatIsAlreadyOnAtStartIsNotAnEdge() {
         val config = withCounter(TimerConfig(index = 0, switch = shDown, startTime = 5))
-        logic[Sources.SH] = 100
+        logic[Sources.SH] = SwitchPosition.DOWN.logic
         run(config, 400)
         assertEquals(0, timers.counterStates[0].count)
     }
@@ -302,7 +302,7 @@ class SimTimersTest {
             },
         )
         frame(config)
-        logic[Sources.SH] = 100
+        logic[Sources.SH] = SwitchPosition.DOWN.logic
         frame(config)
         assertEquals(50.0, SimMixer.compute(config, logic)[6], 1e-9)
     }

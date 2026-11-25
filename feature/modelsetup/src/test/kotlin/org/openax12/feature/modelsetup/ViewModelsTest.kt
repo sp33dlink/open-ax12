@@ -165,7 +165,7 @@ class ViewModelsTest {
         settle()
         val system = session.workingConfig.value.system
         assertNull(system.preFlightPreset(SourceId.THR))
-        assertEquals(-100, system.preFlightPreset(SourceId.SA))
+        assertEquals(SwitchPosition.UP.logic, system.preFlightPreset(SourceId.SA))
         // Counters have no preset: ignored without touching the radio.
         val edits = session.editCount
         vm.setPreset(SourceId.counter(1), 0)

@@ -8,7 +8,7 @@ Diagnostics screen. Append new items when you rely on unproven behaviour; mark t
 |---|---|---|---|
 | 1 | The stock RadioMaster app must be force-closed/disabled; only one process can open the serial port. | Startup, diagnostics hint | open |
 | 2 | The demo's serial-port workaround (redirect `TMPDIR`, NOP two instructions in `libQt6SerialPort` at +0x15628 / +0x15648) is required and sufficient. | `:sdk` JNI | open |
-| 3 | Switch sources report their position as a logic value of −100 / 0 / +100 (up / mid / down). | Switch UI, conditions, compilers | open |
+| 3 | Switch sources report their position as a logic value of **+100 / 0 / −100 (up / mid / down)**. Until 2026-11-25 the app assumed the opposite sign (`SwitchPosition.UP(-100)`). Switch pills are drawn up = teal, mid = orange, down = gray (`AxColors.teal / orange / neutral`). Stored SDK values (mix / dual-rate / lock / timer conditions with a compare value) are plain numbers the firmware compares with the reported value, so they keep meaning the same physical position; only their label in the editors flips. Flight-mode / flaps firmware items compiled before the change are mirrored (up <-> down) until the flight-mode / wing wizard is applied again. | Switch UI, conditions, compilers, templates, simulator | VERIFIED 2026-11-25 by the owner on the AX12: physical up reports +100 %, down −100 %. |
 | 4 | A switch can be used as a mix **input** through a custom curve (per-position offsets). | Flight-mode / flaps compiler | open |
 | 5 | A channel holds at most one mix per source (`rcDelMixCfgData` is keyed by `(chIdx, srcIdx)`). | Managed mixes | open |
 | 6 | The maximum number of mixes per channel is unknown; the UI reads `mixesCount` and handles a failed add. | Mixes tab, compilers | open |

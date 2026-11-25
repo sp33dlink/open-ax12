@@ -169,12 +169,11 @@ fun ChannelRow(
 }
 
 /**
- * State of a 2- or 3-position switch as a vertical pill, as in the stock home screen: the knob
- * is at the top in **orange** (up), in the middle in a **neutral** tone (mid) or at the bottom in
- * **teal** (down).
+ * State of a 2- or 3-position switch as a vertical pill: the knob is at the top in **teal**
+ * (up, +100 %), in the middle in **orange** (mid, 0 %) or at the bottom in **gray** (down, -100 %).
  *
- * @param position logic value of the switch, read in the draw phase: negative = up, 0 = mid,
- *   positive = down (the SDK reports -100 / 0 / +100)
+ * @param position logic value of the switch, read in the draw phase: positive = up, 0 = mid,
+ *   negative = down (the AX12 reports +100 / 0 / -100, assumption 3)
  * @param label name under the pill ("SA")
  * @param positions 2 or 3; a 2-position switch has no middle detent mark
  */
@@ -207,14 +206,14 @@ fun SwitchPill(
                     drawCircle(colors.textFaint.copy(alpha = 0.5f), radius = 1.5.dp.toPx(), center = Offset(cx, mid))
                 }
                 val cy = when {
-                    p < 0 -> top
-                    p > 0 -> bottom
+                    p > 0 -> top
+                    p < 0 -> bottom
                     else -> mid
                 }
                 val knob = when {
-                    p < 0 -> colors.orange
                     p > 0 -> colors.teal
-                    else -> if (colors.neumorphic) Color.White else colors.textMuted
+                    p < 0 -> colors.neutral
+                    else -> colors.orange
                 }
                 if (colors.neumorphic) {
                     drawCircle(colors.shadowDark.copy(alpha = 0.5f), radius = r, center = Offset(cx + 0.8.dp.toPx(), cy + 1.2.dp.toPx()))

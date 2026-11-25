@@ -88,7 +88,7 @@ private fun InputSwitchWidget(config: WidgetConfig, source: WidgetDataSource, mo
         val color = when (position) {
             SwitchPosition.UP -> palette.switchUp
             SwitchPosition.DOWN -> palette.switchDown
-            SwitchPosition.MID -> if (palette.dark) palette.text.copy(alpha = 0.75f) else palette.textDim
+            SwitchPosition.MID -> palette.switchMid
             null -> palette.textDim
         }
         if (position != null) {

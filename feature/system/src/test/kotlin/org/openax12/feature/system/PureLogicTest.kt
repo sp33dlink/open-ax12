@@ -179,9 +179,10 @@ class PureLogicTest {
 
     @Test
     fun simulatorHelpers() {
-        assertEquals(0, switchIndex(-100))
+        // Selector order is up / mid / down; up reports +100 %, down -100 %.
+        assertEquals(0, switchIndex(100))
         assertEquals(1, switchIndex(0))
-        assertEquals(2, switchIndex(100))
+        assertEquals(2, switchIndex(-100))
         assertTrue(springsBack(SourceId.AIL))
         assertFalse(springsBack(SourceId.THR))
         assertEquals(5, decimalsFor(SensorId("crsf.gps.lat")))
