@@ -36,8 +36,18 @@ enum class StickPadTrimEdge {
     End,
 }
 
-/** Stick deflection in percent from which a border of the [StickPad] lights up. */
-const val STICK_PAD_MAX_THRESHOLD: Float = 98f
+/**
+ * Stick deflection in percent at which a border of the [StickPad] lights up: exactly full
+ * deflection (+-100 %). Live values are integer percent clamped to +-100, so a stick that never
+ * reaches its full raw travel never lights its border, which reveals missing calibration.
+ */
+const val STICK_PAD_MAX_THRESHOLD: Float = 100f
+
+/** True if [value] (percent) is at full positive deflection (>= +100 %). */
+internal fun isStickAtPositiveMax(value: Float): Boolean = value >= STICK_PAD_MAX_THRESHOLD
+
+/** True if [value] (percent) is at full negative deflection (<= -100 %). */
+internal fun isStickAtNegativeMax(value: Float): Boolean = value <= -STICK_PAD_MAX_THRESHOLD
 
 /** Largest deflection in percent on both axes that still counts as dead centre. */
 const val STICK_PAD_CENTER_THRESHOLD: Float = 2f
@@ -49,7 +59,8 @@ const val STICK_PAD_CENTER_THRESHOLD: Float = 2f
  * pad area.
  *
  * - A border **lights up with an accent glow while the stick is at its maximum on that side**
- *   (|value| >= [STICK_PAD_MAX_THRESHOLD] %); in a corner two borders and the corner between them
+ *   (exactly +-[STICK_PAD_MAX_THRESHOLD] %, so an uncalibrated stick that does not reach full
+ *   travel never lights it); in a corner two borders and the corner between them
  *   are lit.
  * - The **centre marker lights up while the stick is at dead centre** (both axes within
  *   +-[STICK_PAD_CENTER_THRESHOLD] %).
@@ -138,8 +149,8 @@ fun StickPad(
                         drawBorders(field, px, py, colors)
                         drawCenterMarker(field, px, py, colors, centerHalo)
                         drawStickDot(field, inset, px, py, colors)
-                        if (trimY != null) drawVerticalTrim(field, trimAtStart, sanitize(trimY()), colors, litSide = if (trimAtStart) px <= -STICK_PAD_MAX_THRESHOLD else px >= STICK_PAD_MAX_THRESHOLD)
-                        if (trimX != null) drawHorizontalTrim(field, sanitize(trimX()), colors, litSide = py <= -STICK_PAD_MAX_THRESHOLD)
+                        if (trimY != null) drawVerticalTrim(field, trimAtStart, sanitize(trimY()), colors, litSide = if (trimAtStart) isStickAtNegativeMax(px) else isStickAtPositiveMax(px))
+                        if (trimX != null) drawHorizontalTrim(field, sanitize(trimX()), colors, litSide = isStickAtNegativeMax(py))
                     }
                 },
         )
@@ -215,10 +226,10 @@ private fun DrawScope.drawGlowArc(color: Color, topLeft: Offset, diameter: Float
  * is at the maximum on that side; a corner arc lights up when both adjacent sides are lit.
  */
 private fun DrawScope.drawBorders(field: Rect, x: Float, y: Float, colors: AxColors) {
-    val right = x >= STICK_PAD_MAX_THRESHOLD
-    val left = x <= -STICK_PAD_MAX_THRESHOLD
-    val top = y >= STICK_PAD_MAX_THRESHOLD
-    val bottom = y <= -STICK_PAD_MAX_THRESHOLD
+    val right = isStickAtPositiveMax(x)
+    val left = isStickAtNegativeMax(x)
+    val top = isStickAtPositiveMax(y)
+    val bottom = isStickAtNegativeMax(y)
 
     val idleWidth = 1.5.dp.toPx()
     val litWidth = 3.dp.toPx()
