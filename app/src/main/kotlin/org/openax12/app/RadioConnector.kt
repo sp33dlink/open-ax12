@@ -35,10 +35,13 @@ internal fun showStockAppActions(reason: ConnectionError, stockInstalled: Boolea
 
 /**
  * Whether a failed start is worth one automatic "close the stock app and try again": the setting
- * is on, the stock app exists on this device and the error looks like a held serial port.
+ * is on, the stock app exists on this device and the error really indicates a held serial port
+ * ([ConnectionError.SerialPortBusy] or [ConnectionError.CommunicationInitFailed]). A device
+ * timeout is not retried: a silent radio would only double the wait.
  */
 internal fun shouldCloseAndRetry(result: StartupState, autoClose: Boolean, stockInstalled: Boolean): Boolean =
-    autoClose && stockInstalled && result is StartupState.RadioFailed && result.reason.mayBeStockAppConflict
+    autoClose && stockInstalled && result is StartupState.RadioFailed &&
+        (result.reason is ConnectionError.SerialPortBusy || result.reason is ConnectionError.CommunicationInitFailed)
 
 /**
  * Starts the radio connection and deals with the stock RadioMaster app around it. It is the only
@@ -49,7 +52,7 @@ internal fun shouldCloseAndRetry(result: StartupState, autoClose: Boolean, stock
  * 1. if "close the stock app automatically" is on and the stock app is installed, close it and
  *    wait [preConnectSettleMs] (the process holds the port until it is really gone);
  * 2. start the radio;
- * 3. if that failed in the way a running stock app causes ([shouldCloseAndRetry]), close it once
+ * 3. if that failed with a held serial port ([shouldCloseAndRetry]), close it once
  *    more, wait [settleMs] and start again — once, never in a loop. [recovering] is true during
  *    that second round so that the UI shows "Connecting…" instead of flashing the error screen.
  *

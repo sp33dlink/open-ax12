@@ -101,6 +101,24 @@ class RadioConnectorTest {
     }
 
     @Test
+    fun `a failed communication init is retried once`() = runTest {
+        val failed = StartupState.RadioFailed(ConnectionError.CommunicationInitFailed())
+        val rig = Rig(this, results = ArrayDeque(listOf(failed, failed)))
+        rig.connector.connect()
+        advanceUntilIdle()
+        assertEquals(listOf("close", "start", "close", "start"), rig.log)
+    }
+
+    @Test
+    fun `a silent radio is not retried`() = runTest {
+        val rig = Rig(this, results = ArrayDeque(listOf(StartupState.RadioFailed(ConnectionError.DeviceTimeout()))))
+        rig.connector.connect()
+        advanceUntilIdle()
+        assertEquals(listOf("close", "start"), rig.log)
+        assertFalse(rig.connector.recovering.value)
+    }
+
+    @Test
     fun `recovering is set while the retry round runs`() = runTest {
         val rig = Rig(this, results = ArrayDeque(listOf(busy, StartupState.Running)))
         rig.connector.connect()
