@@ -1,5 +1,6 @@
 package org.openax12.core.data.library
 
+import org.openax12.core.model.ModelExtras
 import android.net.Uri
 import java.io.File
 import java.io.InputStream
@@ -74,7 +75,7 @@ class FreshSdkDirectoryTest {
     private fun libraryModel(folder: String, config: String, stamp: String = "old", extras: Boolean = false, snapshots: Boolean = false) {
         val dir = File(modelsDir, folder).apply { mkdirs() }
         File(dir, "model.json").writeText("""{"modelName":"$stamp","modelMatch":0,"config":"$config"}""")
-        if (extras) File(dir, "extras.json").writeText("""{"schemaVersion":1,"modelType":"WING"}""")
+        if (extras) File(dir, "extras.json").writeText("""{"schemaVersion":${ModelExtras.CURRENT_SCHEMA_VERSION},"modelType":"WING"}""")
         if (snapshots) File(dir, "snapshots").mkdirs()
     }
 
