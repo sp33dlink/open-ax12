@@ -1226,9 +1226,15 @@ JNI_FN(jobject, getSysConfig)(JNIEnv* env, jobject) {
 
 JNI_FN(jboolean, setSysConfig)(JNIEnv* env, jobject, jobject raw) {
     JNI_TRY
-    rmaxSdk::RcSysCfgDataUI config{};
-    if (!g_sysCfg.fromJava(env, raw, config)) return JNI_FALSE;
-    rmaxSdk::rcSetRcSysConfig(config);
+    // The SDK's setter reads one byte beyond the 59 bytes of the header's struct (it copies 43 bytes
+    // starting at `stickMode`): hand it a zero-padded buffer so that byte is defined (assumption r6).
+    struct alignas(8) PaddedSysCfg {
+        rmaxSdk::RcSysCfgDataUI config;
+        unsigned char guard[8];
+    };
+    PaddedSysCfg padded{};
+    if (!g_sysCfg.fromJava(env, raw, padded.config)) return JNI_FALSE;
+    rmaxSdk::rcSetRcSysConfig(padded.config);
     return JNI_TRUE;
     JNI_CATCH("setSysConfig", JNI_FALSE)
 }

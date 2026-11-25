@@ -130,7 +130,7 @@ internal fun buildHomeState(model: ModelEntry?, extras: ModelExtras, config: Wor
         modelType = extras.modelType,
         centerCard = extras.home.centerCard,
         pinnedWidgets = extras.telemetry.pinnedWidgets,
-        stickMode = config.system.stickMode,
+        stickMode = config.system?.stickMode ?: StickMode.MODE_2,
         channels = List(CHANNEL_COUNT) { ChannelItem(it, emphasized = (config.channel(it)?.mixCount ?: 0) > 0) },
         channelPage = extras.home.channelPage.coerceIn(0, CHANNEL_PAGES - 1),
         timers = timerItems(config),

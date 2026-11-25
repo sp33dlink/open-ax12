@@ -136,7 +136,7 @@ class FakeRadioTest {
         assertEquals("Ail", radio.getMix(0, 0)!!.sourceName)
         assertEquals(1, radio.getMix(0, 0)!!.mixCount)
         assertEquals(1, radio.getOutputChannels()[0].mixCount)
-        assertEquals(StickMode.MODE_2, config.system.stickMode)
+        assertEquals(StickMode.MODE_2, config.system!!.stickMode)
 
         val firmware = radio.getFirmwareInfo()!!
         assertFalse(firmware.isEmpty)

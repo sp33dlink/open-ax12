@@ -107,16 +107,17 @@ suspend fun Radio.drainTelemetryNotifications(max: Int = 32): List<TelemetryAlar
  * Reads the complete working configuration through the individual getters.
  *
  * Costs a few hundred cheap SDK calls (in-memory reads); call it when [Radio.configRevision]
- * changed, not per frame. If the radio is not usable — no channels, or the system configuration
- * cannot be read — the result is an empty config ([WorkingConfig.isEmpty]) with the current
- * revision. Defaults are never substituted for unreadable parts: a made-up `SystemConfig` would
- * be indistinguishable from a real one and could be written back to the radio.
+ * changed, not per frame. If the radio is not usable (no channels) the result is an empty config
+ * ([WorkingConfig.isEmpty]) with the current revision. A system configuration that cannot be read
+ * or is not trustworthy ([Radio.getSystemConfig] is null) leaves [WorkingConfig.system] null, the
+ * rest is still read. Defaults are never substituted for unreadable parts: a made-up
+ * `SystemConfig` would be indistinguishable from a real one and could be written back to the radio.
  */
 suspend fun Radio.readWorkingConfig(): WorkingConfig {
     val revision = configRevision.value
     val channels = getOutputChannels()
     if (channels.isEmpty()) return WorkingConfig(revision = revision)
-    val system = getSystemConfig() ?: return WorkingConfig(revision = revision)
+    val system = getSystemConfig()
     val mixes = ArrayList<MixLine>()
     val dualRates = ArrayList<DualRateSlot>()
     for (channel in channels) {

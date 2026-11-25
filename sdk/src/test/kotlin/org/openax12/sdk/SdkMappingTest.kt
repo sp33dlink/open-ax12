@@ -10,8 +10,10 @@ import org.junit.Test
 import org.openax12.core.model.CompareOp
 import org.openax12.core.model.LiveSnapshot
 import org.openax12.core.model.NO_CURVE
+import org.openax12.core.model.RawSystemFields
 import org.openax12.core.model.SourceId
 import org.openax12.core.model.StickMode
+import org.openax12.core.model.SystemConfigValidity
 import org.openax12.core.radio.RadioEvent
 
 class SdkMappingTest {
@@ -85,6 +87,27 @@ class SdkMappingTest {
         assertEquals(105, raw.alramVtg)
         assertTrue(SdkMapping.overlaySystemConfig(raw, config.copy(stickMode = StickMode.MODE_1)))
         assertEquals(2, raw.stickMode)
+    }
+
+    @Test
+    fun `the system struct of a model file round-trips and a change keeps the other radio values`() {
+        val fields = RawSystemFields(
+            failsafeMode = 0,
+            failsafeValues = List(16) { 0 },
+            stickMode = 1,
+            preFlightCheck = List(36) { 127 },
+            rfModuleMode = 0,
+            alarmVoltageDeciVolt = 33,
+            stickBeep = 0,
+            modelMatchId = 0,
+            crsfBaudRate = 170,
+        )
+        val raw = SdkMapping.rawSysCfg(fields)
+        assertEquals(fields, SdkMapping.rawSystemFields(raw))
+        assertEquals(null, SystemConfigValidity.problem(fields))
+        // The alarm voltage changes, RF, baud, failsafe and stick mode stay exactly as read.
+        assertTrue(SdkMapping.overlaySystemConfig(raw, SdkMapping.systemConfig(raw).copy(alarmVoltageDeciVolt = 34)))
+        assertEquals(fields.copy(alarmVoltageDeciVolt = 34), SdkMapping.rawSystemFields(raw))
     }
 
     @Test

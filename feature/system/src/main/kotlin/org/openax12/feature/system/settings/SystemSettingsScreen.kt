@@ -112,7 +112,7 @@ internal fun SystemSettingsScreen(
             }
         }
     }
-    PendingActionDialog(state.pending, onEvent)
+    PendingActionDialog(state.pending, state.linkUp, onEvent)
 }
 
 @Composable
@@ -163,10 +163,18 @@ private fun Rail(selectedTab: SettingsTab, onTabSelected: (SettingsTab) -> Unit)
 
 /** The confirmation of a pending radio action: a double confirmation for restore defaults, a plain one while linked. */
 @Composable
-private fun PendingActionDialog(pending: RadioAction?, onEvent: (SettingsEvent) -> Unit) {
-    when (pending) {
-        null -> Unit
-        RadioAction.RestoreDefaults -> DoubleConfirmDialog(
+private fun PendingActionDialog(pending: RadioAction?, linkUp: Boolean, onEvent: (SettingsEvent) -> Unit) {
+    when {
+        pending == null -> Unit
+        pending.turnsRfOff -> ConfirmDialog(
+            title = stringResource(R.string.rf_off_title),
+            message = stringResource(if (linkUp) R.string.rf_off_message_linked else R.string.rf_off_message),
+            onConfirm = { onEvent(SettingsEvent.ConfirmPending) },
+            onDismiss = { onEvent(SettingsEvent.DismissPending) },
+            confirmLabel = stringResource(R.string.rf_off_confirm),
+            destructive = true,
+        )
+        pending == RadioAction.RestoreDefaults -> DoubleConfirmDialog(
             title = stringResource(R.string.restore_title),
             message = stringResource(R.string.restore_message),
             secondMessage = stringResource(R.string.restore_second),

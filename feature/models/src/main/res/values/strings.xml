@@ -43,6 +43,7 @@
     <string name="models_empty_title">No models yet</string>
     <string name="models_empty_message">Create a model from a template or import a model file.</string>
     <string name="models_selected">%1$s is now the model of the radio.</string>
+    <string name="models_rf_off_warning">The RF module of this radio is off, so the model does not transmit. Turn it on under System, Radio.</string>
     <string name="models_written">The model was written to the radio.</string>
 
     <!-- Banners -->

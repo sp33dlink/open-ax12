@@ -6,6 +6,7 @@ import org.openax12.core.model.ModelBlueprint
 import org.openax12.core.model.ModelExtras
 import org.openax12.core.model.ModelInfo
 import org.openax12.core.model.ModelType
+import org.openax12.core.model.RadioWidePatch
 
 /**
  * One model of the library as shown in the Models screen.
@@ -171,6 +172,21 @@ data class StorageInfo(
     val isAvailable: Boolean get() = libraryRoot.isNotEmpty()
 }
 
+/**
+ * What [ModelRepository.applyRadioWideSettings] did.
+ *
+ * @property updated names of the models whose SDK file or library reference copy was changed
+ * @property unchanged names of the models that already had the values (or were skipped because
+ *   they are the current model, which the radio path updates itself)
+ * @property failed English diagnostics of the models that could not be updated; each of them is
+ *   corrected the next time it is loaded (radio-wide values are applied on load)
+ */
+data class RadioWideReport(
+    val updated: List<String> = emptyList(),
+    val unchanged: List<String> = emptyList(),
+    val failed: List<String> = emptyList(),
+)
+
 /** Normalized crop rectangle of a picked image (fractions 0..1 of the image's width / height). */
 data class PictureCropRect(val left: Float = 0f, val top: Float = 0f, val right: Float = 1f, val bottom: Float = 1f)
 
@@ -325,6 +341,26 @@ interface ModelRepository {
      * `ConfigSession.reloadCurrentModel`.
      */
     suspend fun reloadCurrentModel(): DataResult<ModelEntry>
+
+    // -- Radio-wide settings --------------------------------------------------------------------
+
+    /**
+     * Stick mode, RF module mode and the low-voltage alarm are settings of the transmitter, but the
+     * SDK stores them in every model file. After one of them was changed on the radio
+     * (`ConfigSession.updateSystemConfig`) this writes the same values into **every other model**:
+     * its SDK model file and the library's `model.json` reference copy (a copy that was modified
+     * outside the app is left alone). The current model is skipped: the radio path wrote it and
+     * [onDeviceConfigWritten] refreshes its copy. Only the fields set in [patch] are touched;
+     * `modelMatchId`, failsafe and pre-flight presets stay per model.
+     *
+     * The same values are also applied automatically to a model before it is loaded
+     * ([selectModel], [restoreSnapshot], [acceptExternalChange]) or imported ([importModel]) when
+     * they differ from the radio's current ones, so a model that was missed here (or came from
+     * another radio) never changes the radio-wide settings by being selected.
+     *
+     * Failures of single models are reported in [RadioWideReport.failed], not as a failure.
+     */
+    suspend fun applyRadioWideSettings(patch: RadioWidePatch): DataResult<RadioWideReport>
 
     // -- Extras -------------------------------------------------------------------------------
 

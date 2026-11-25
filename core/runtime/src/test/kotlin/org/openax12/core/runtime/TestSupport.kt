@@ -24,6 +24,7 @@ import org.openax12.core.data.ModelEntry
 import org.openax12.core.data.ModelRepository
 import org.openax12.core.data.ModelSnapshot
 import org.openax12.core.data.PictureCropRect
+import org.openax12.core.data.RadioWideReport
 import org.openax12.core.data.ReconcileReport
 import org.openax12.core.data.SettingsRepository
 import org.openax12.core.data.StorageInfo
@@ -35,6 +36,7 @@ import org.openax12.core.model.GpsFix
 import org.openax12.core.model.HapticPattern
 import org.openax12.core.model.ModelBlueprint
 import org.openax12.core.model.ModelExtras
+import org.openax12.core.model.RadioWidePatch
 import org.openax12.core.model.SensorId
 import org.openax12.core.model.SensorInfo
 import org.openax12.core.model.SensorUnit
@@ -273,6 +275,12 @@ internal class FakeModels(private val radio: Radio) : ModelRepository {
     var savedCount = 0
     var writtenCount = 0
 
+    /** What `applyRadioWideSettings` was asked to write into the other models. */
+    val radioWidePatches = CopyOnWriteArrayList<RadioWidePatch>()
+
+    /** What `applyRadioWideSettings` answers. */
+    var radioWideReport: DataResult<RadioWideReport> = DataResult.Success(RadioWideReport())
+
     override val models: StateFlow<List<ModelEntry>> = _models.asStateFlow()
     override val currentModel: StateFlow<ModelEntry?> = _current.asStateFlow()
     override val deviceInSync: StateFlow<Boolean> = _inSync.asStateFlow()
@@ -365,6 +373,11 @@ internal class FakeModels(private val radio: Radio) : ModelRepository {
         _current.value?.let { _extras.value = saved.getValue(it.id) }
         _staged.value = false
         return _extras.value
+    }
+
+    override suspend fun applyRadioWideSettings(patch: RadioWidePatch): DataResult<RadioWideReport> {
+        radioWidePatches += patch
+        return radioWideReport
     }
 
     override suspend fun readExtras(modelId: String): DataResult<ModelExtras> = unused()

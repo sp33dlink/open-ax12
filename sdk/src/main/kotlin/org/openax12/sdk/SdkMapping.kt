@@ -16,6 +16,7 @@ import org.openax12.core.model.OutputChannelConfig
 import org.openax12.core.model.PERCENT_MAX
 import org.openax12.core.model.PERCENT_MIN
 import org.openax12.core.model.PREFLIGHT_NO_CHECK
+import org.openax12.core.model.RawSystemFields
 import org.openax12.core.model.RfModuleMode
 import org.openax12.core.model.SourceId
 import org.openax12.core.model.SourceInfo
@@ -419,6 +420,32 @@ internal object SdkMapping {
         stickMode = StickMode.fromSdk(raw.stickMode),
         preFlightCheck = raw.preFlightCheckChannel.toList(),
         rfModuleMode = RfModuleMode.fromSdk(raw.rfModuleMode),
+        alarmVoltageDeciVolt = raw.alramVtg,
+        stickBeep = raw.joytickBeep,
+        modelMatchId = raw.modelMatchId,
+        crsfBaudRate = raw.crsfBaudRate,
+    )
+
+    /** The system struct for the raw [fields] of a model file (arrays copied). */
+    fun rawSysCfg(fields: RawSystemFields): RawSysCfg = RawSysCfg().apply {
+        fsMode = fields.failsafeMode
+        fsChVal = fields.failsafeValues.toIntArray()
+        stickMode = fields.stickMode
+        preFlightCheckChannel = fields.preFlightCheck.toIntArray()
+        rfModuleMode = fields.rfModuleMode
+        alramVtg = fields.alarmVoltageDeciVolt
+        joytickBeep = fields.stickBeep
+        modelMatchId = fields.modelMatchId
+        crsfBaudRate = fields.crsfBaudRate
+    }
+
+    /** The raw system fields of [raw] (arrays copied), for the plausibility check and the model-file comparison. */
+    fun rawSystemFields(raw: RawSysCfg): RawSystemFields = RawSystemFields(
+        failsafeMode = raw.fsMode,
+        failsafeValues = raw.fsChVal.toList(),
+        stickMode = raw.stickMode,
+        preFlightCheck = raw.preFlightCheckChannel.toList(),
+        rfModuleMode = raw.rfModuleMode,
         alarmVoltageDeciVolt = raw.alramVtg,
         stickBeep = raw.joytickBeep,
         modelMatchId = raw.modelMatchId,

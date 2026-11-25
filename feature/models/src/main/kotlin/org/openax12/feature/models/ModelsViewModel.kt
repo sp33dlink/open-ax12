@@ -16,6 +16,7 @@ import org.openax12.core.data.ExternalChange
 import org.openax12.core.data.ModelEntry
 import org.openax12.core.data.ModelRepository
 import org.openax12.core.designsystem.AxToastKind
+import org.openax12.core.model.RfModuleMode
 import org.openax12.core.runtime.ConfigSession
 import org.openax12.core.runtime.SessionResult
 
@@ -123,6 +124,7 @@ internal class ModelsViewModel(
             runBusy {
                 val result = configSession.selectModel(entry.id, discardChanges = discard)
                 report(result, UiMessage(R.string.models_selected, listOf(entry.name), AxToastKind.Success))
+                warnIfRfOff(result)
             }
         }
     }
@@ -184,6 +186,16 @@ internal class ModelsViewModel(
             block()
         } finally {
             local.update { it.copy(busy = false) }
+        }
+    }
+
+    /**
+     * The RF module is a setting of the radio, not of the model, and a model that was just loaded
+     * flies with it: if it is off the model does not transmit, which the user must hear about.
+     */
+    private fun warnIfRfOff(result: SessionResult<*>) {
+        if (result.isSuccess && configSession.workingConfig.value.system?.rfModuleMode == RfModuleMode.OFF) {
+            emit(UiMessage(R.string.models_rf_off_warning, kind = AxToastKind.Warning))
         }
     }
 
