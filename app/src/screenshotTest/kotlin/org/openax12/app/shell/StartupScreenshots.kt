@@ -68,11 +68,9 @@ fun StartupConnectingSlowScreenshot() {
 }
 
 @Composable
-private fun OnboardingFrame(page: Int, stockInstalled: Boolean = true) {
+private fun OnboardingFrame(stockInstalled: Boolean = true) {
     Ax12Theme {
         OnboardingContent(
-            page = page,
-            onPageChange = {},
             stockInstalled = stockInstalled,
             closeStockApp = true,
             onCloseStockAppChange = {},
@@ -87,20 +85,13 @@ private fun OnboardingFrame(page: Int, stockInstalled: Boolean = true) {
 @PreviewTest
 @Ax12Preview
 @Composable
-fun OnboardingWelcomeScreenshot() {
-    OnboardingFrame(page = 0)
+fun OnboardingScreenshot() {
+    OnboardingFrame()
 }
 
 @PreviewTest
 @Ax12Preview
 @Composable
-fun OnboardingChoicesScreenshot() {
-    OnboardingFrame(page = 1)
-}
-
-@PreviewTest
-@Ax12Preview
-@Composable
-fun OnboardingChoicesNoStockScreenshot() {
-    OnboardingFrame(page = 1, stockInstalled = false)
+fun OnboardingNoStockScreenshot() {
+    OnboardingFrame(stockInstalled = false)
 }

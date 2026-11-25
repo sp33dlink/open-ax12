@@ -12,12 +12,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -141,11 +139,8 @@ private fun Onboarding(graph: AppGraph, stockApp: StockApp, statusBar: @Composab
     val settings by graph.settings.settings.collectAsStateWithLifecycle()
     val startup by graph.startup.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
-    var page by rememberSaveable { mutableIntStateOf(0) }
-    BackHandler { if (page > 0) page-- }
+    BackHandler {} // Back must not leave the onboarding
     OnboardingContent(
-        page = page,
-        onPageChange = { page = it },
         stockInstalled = stockApp.isInstalled,
         connecting = !startup.isRunning,
         closeStockApp = settings.closeStockApp,
