@@ -96,7 +96,14 @@ internal fun CalibrationScreen(
                             title = stringResource(if (state.running) R.string.cal_running else R.string.cal_idle),
                         )
                         Text(
-                            text = stringResource(if (state.running) R.string.cal_steps_running else R.string.cal_steps_idle),
+                            text = stringResource(
+                                when (state.phase) {
+                                    CalibrationPhase.IDLE -> R.string.cal_steps_idle
+                                    CalibrationPhase.PREPARING -> R.string.cal_steps_preparing
+                                    CalibrationPhase.CAPTURING_CENTRE -> R.string.cal_steps_centre
+                                    CalibrationPhase.MOVE_STICKS -> R.string.cal_steps_running
+                                },
+                            ),
                             style = AxTheme.typography.body,
                             color = AxTheme.colors.text,
                         )
@@ -108,7 +115,7 @@ internal fun CalibrationScreen(
                                     onClick = onFinish,
                                     variant = AxButtonVariant.Primary,
                                     icon = AxIcons.Check,
-                                    enabled = state.ready && !state.busy,
+                                    enabled = state.ready && !state.busy && state.canFinish,
                                 )
                             } else {
                                 AxButton(

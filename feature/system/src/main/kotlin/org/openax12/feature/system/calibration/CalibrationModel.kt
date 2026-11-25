@@ -64,6 +64,32 @@ internal data class CalibrationUiState(
     /** The radio is calibrating right now. */
     val running: Boolean get() = calibrationState != 0
 
+    /**
+     * The radio's calibration phase (observed in the stock app, which drives the same firmware):
+     * 1 = preparing, 2 = capturing the centre (sticks must stay centred and still),
+     * 3 = collecting the end points (move the sticks). Finishing is only valid in phase 3;
+     * finishing earlier stores a wrong centre.
+     */
+    val phase: CalibrationPhase get() = CalibrationPhase.of(calibrationState)
+
+    /** Finish may be pressed: the radio has the centre and is collecting the end points. */
+    val canFinish: Boolean get() = phase == CalibrationPhase.MOVE_STICKS
+
     /** The radio can be told to calibrate. */
     val ready: Boolean get() = connection.isReady
+}
+
+/** Phases of the radio's stick calibration (`RadioStatus.calibrationState`). */
+internal enum class CalibrationPhase {
+    IDLE, PREPARING, CAPTURING_CENTRE, MOVE_STICKS;
+
+    companion object {
+        fun of(state: Int): CalibrationPhase = when (state) {
+            0 -> IDLE
+            1 -> PREPARING
+            2 -> CAPTURING_CENTRE
+            3 -> MOVE_STICKS
+            else -> PREPARING
+        }
+    }
 }

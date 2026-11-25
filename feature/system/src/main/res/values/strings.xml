@@ -82,7 +82,7 @@
     <string name="radio_rf_external">External</string>
     <string name="radio_rf_off">Off</string>
     <string name="radio_calibration">Stick calibration</string>
-    <string name="radio_calibration_desc">Sweep the sticks to teach the radio their end points</string>
+    <string name="radio_calibration_desc">Teach the radio the centre and the end points of the sticks</string>
     <string name="radio_elrs">ELRS menu</string>
     <string name="radio_elrs_desc">Packet rate, power, bind and link status of the ExpressLRS module</string>
     <string name="radio_preflight">Pre-flight check</string>
@@ -232,14 +232,16 @@
     <string name="cal_title">Stick calibration</string>
     <string name="cal_idle">Ready to calibrate</string>
     <string name="cal_running">Calibrating</string>
-    <string name="cal_steps_idle">Press Start, then move both sticks slowly to every end and around the full circle. Return them to the centre and press Finish.</string>
-    <string name="cal_steps_running">Move each stick slowly to all four ends, then let go and press Finish. The ticks show which axes reached both ends.</string>
+    <string name="cal_steps_idle">Put both sticks in the centre, the throttle too, and keep them still. Then press Start and wait until the radio asks you to move them.</string>
+    <string name="cal_steps_preparing">Preparing… keep all sticks centred and still.</string>
+    <string name="cal_steps_centre">Capturing the centre: keep all sticks centred and still, the throttle too.</string>
+    <string name="cal_steps_running">Now move each stick slowly to all four ends and around the full circle, then let go and press Finish. The ticks show which axes reached both ends.</string>
     <string name="cal_start">Start</string>
     <string name="cal_finish">Finish</string>
     <string name="cal_state">Calibration state reported by the radio: %1$d</string>
     <string name="cal_link_up_notice">The receiver link is up. Calibrate with the model switched off or the receiver unpowered.</string>
     <string name="cal_confirm_title">Calibrate while linked?</string>
-    <string name="cal_confirm_message">While the calibration runs the stick values change. Do this only with the model safe and the motor disarmed.</string>
+    <string name="cal_confirm_message">While the calibration runs the stick values change. Do this only with the model safe and the motor disarmed. Centre both sticks, the throttle too, before you start.</string>
 
     <!-- Pre-flight -->
     <string name="pf_title">Pre-flight check</string>
