@@ -16,6 +16,10 @@ import org.openax12.core.model.Ax12Json
  * (`MODEL_FILE_CFG.modelName` / `modelIdx` / `timeStamp`). Two files that differ only in those
  * hold the same model: that is how a model re-created by the SDK from the radio's MCU after the
  * app's data was cleared is recognised in the library.
+ *
+ * Stick mode, RF module mode and the alarm voltage (`RC_MODEL_CFG.stickMode` / `rfModuleMode` /
+ * `alramVtg`) are settings of the radio that the app keeps equal in every model; a copy that
+ * missed a change, or one that was adjusted to the radio when it was loaded, is still the same model.
  */
 internal object ModelContent {
 
@@ -23,6 +27,11 @@ internal object ModelContent {
     private val VOLATILE_KEYS = setOf("modelName", "timeStamp", "modelIdx")
 
     private const val FILE_HEADER_KEY = "MODEL_FILE_CFG"
+
+    private const val CONFIG_KEY = "RC_MODEL_CFG"
+
+    /** Radio-wide fields inside `RC_MODEL_CFG`: unified across the models, so no part of a model's identity. */
+    private val RADIO_WIDE_KEYS = setOf("stickMode", "rfModuleMode", "alramVtg")
 
     /**
      * A fingerprint of the configuration in [file], independent of the model name, the SDK's
@@ -49,6 +58,8 @@ internal object ModelContent {
             when {
                 key in VOLATILE_KEYS -> Unit
                 isRoot && key == FILE_HEADER_KEY && value is JsonObject -> kept[key] = withoutVolatile(value, isRoot = false)
+                isRoot && key == CONFIG_KEY && value is JsonObject ->
+                    kept[key] = JsonObject(value.filterKeys { it !in RADIO_WIDE_KEYS })
                 else -> kept[key] = value
             }
         }

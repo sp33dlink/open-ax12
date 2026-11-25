@@ -157,6 +157,18 @@ class FreshSdkDirectoryTest {
     }
 
     @Test
+    fun `the radio-wide settings are ignored when comparing model files`() {
+        val dir = tmp.newFolder("wide")
+        fun model(name: String, body: String) = File(dir, name).apply { writeText("""{"RC_MODEL_CFG":{$body}}""") }
+        val a = model("a.json", """"stickMode":1,"rfModuleMode":0,"alramVtg":33,"modelMatchId":0,"x":[1]""")
+        val sameModelOtherRadioSettings = model("b.json", """"stickMode":0,"rfModuleMode":2,"alramVtg":70,"modelMatchId":0,"x":[1]""")
+        val otherModel = model("c.json", """"stickMode":1,"rfModuleMode":0,"alramVtg":33,"modelMatchId":4,"x":[1]""")
+
+        assertEquals(ModelContent.fingerprint(a), ModelContent.fingerprint(sameModelOtherRadioSettings))
+        assertFalse(ModelContent.fingerprint(a) == ModelContent.fingerprint(otherModel))
+    }
+
+    @Test
     fun `a radio model that matches nothing gets one readable entry`() = runTest {
         libraryModel("Glider", "config G")
         freshSdkModel("config Z")
