@@ -102,10 +102,10 @@ internal sealed interface HomePage {
 /** Everything the stateless home screen needs apart from live values. */
 @Immutable
 internal data class HomeUiState(
-    val modelName: String = "",
     val picturePath: String? = null,
     val pictureVersion: Long = 0,
     val modelType: ModelType = ModelType.GLIDER,
+    /** Face of the centre card to show, already resolved ([HomePreferences.resolvedCenterCard]). */
     val centerCard: HomeCenterCard = HomeCenterCard.PICTURE,
     val pinnedWidgets: List<WidgetConfig> = emptyList(),
     val stickMode: StickMode = StickMode.MODE_2,
@@ -115,6 +115,10 @@ internal data class HomeUiState(
     val pages: List<HomePage> = emptyList(),
     val pageIndex: Int = 0,
 ) {
+    /** True when the model has pinned widgets; only then the centre card can show them and flip. */
+    val hasPinnedWidgets: Boolean
+        get() = pinnedWidgets.isNotEmpty()
+
     /** The channels of the page shown. */
     val visibleChannels: List<ChannelItem>
         get() = channels.drop(channelPage * CHANNELS_PER_PAGE).take(CHANNELS_PER_PAGE)
@@ -123,13 +127,13 @@ internal data class HomeUiState(
 /** Builds the state of the home screen. Pure: the same inputs always give the same state. */
 internal fun buildHomeState(model: ModelEntry?, extras: ModelExtras, config: WorkingConfig): HomeUiState {
     val pages = planPages(config, extras)
+    val pinned = extras.telemetry.pinnedWidgets
     return HomeUiState(
-        modelName = model?.name.orEmpty(),
         picturePath = model?.picturePath,
         pictureVersion = model?.pictureVersion ?: 0,
         modelType = extras.modelType,
-        centerCard = extras.home.centerCard,
-        pinnedWidgets = extras.telemetry.pinnedWidgets,
+        centerCard = extras.home.resolvedCenterCard(pinned.isNotEmpty()),
+        pinnedWidgets = pinned,
         stickMode = config.system.stickMode,
         channels = List(CHANNEL_COUNT) { ChannelItem(it, emphasized = (config.channel(it)?.mixCount ?: 0) > 0) },
         channelPage = extras.home.channelPage.coerceIn(0, CHANNEL_PAGES - 1),
@@ -137,6 +141,17 @@ internal fun buildHomeState(model: ModelEntry?, extras: ModelExtras, config: Wor
         pages = pages,
         pageIndex = extras.home.inputPage.coerceIn(0, (pages.size - 1).coerceAtLeast(0)),
     )
+}
+
+/**
+ * The extras after a tap on the flip button: the other face of the centre card is remembered for
+ * this model. Models without pinned widgets are returned unchanged (nothing to flip to).
+ */
+internal fun toggleCenterCard(extras: ModelExtras): ModelExtras {
+    if (extras.telemetry.pinnedWidgets.isEmpty()) return extras
+    val shown = extras.home.resolvedCenterCard(hasPinnedWidgets = true)
+    val other = if (shown == HomeCenterCard.PICTURE) HomeCenterCard.WIDGETS else HomeCenterCard.PICTURE
+    return extras.copy(home = extras.home.copy(centerCard = other))
 }
 
 /** The timers to list: T1 and T2 always, T3 when it has a switch, a start time or a mode. */

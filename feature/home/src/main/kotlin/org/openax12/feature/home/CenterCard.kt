@@ -7,16 +7,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -25,12 +21,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.openax12.core.designsystem.AxCard
+import org.openax12.core.designsystem.AxButton
 import org.openax12.core.designsystem.AxDimens
 import org.openax12.core.designsystem.AxIconButton
+import org.openax12.core.designsystem.AxIconButtonVariant
 import org.openax12.core.designsystem.AxIcons
 import org.openax12.core.designsystem.AxTheme
 import org.openax12.core.designsystem.AxWell
@@ -46,8 +42,9 @@ import org.openax12.core.widgets.WidgetDataSource
 private const val FLIP_MILLIS = 420
 
 /**
- * The centre card: model name, the picture that flips to the pinned telemetry widgets, and the
- * timers.
+ * The centre card: the pinned telemetry widgets (or, when none are pinned or the user flipped it,
+ * the model picture) filling all the height the timers leave, with a compact flip button in the
+ * top-right corner. The model name is only shown in the status bar.
  *
  * Timers cannot be started or stopped by hand (the firmware has no such command): a tap on a row
  * or its gear opens the timer settings, a long-press resets the timer.
@@ -60,18 +57,18 @@ internal fun CenterCard(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    AxCard(modifier = modifier, contentPadding = PaddingValues(12.dp)) {
-        Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            NameRow(
-                name = state.modelName.ifBlank { stringResource(R.string.home_no_model) },
-                showingWidgets = state.centerCard == HomeCenterCard.WIDGETS,
-                onOpenModels = { onAction(HomeAction.OpenModels) },
-                onToggle = { onAction(HomeAction.ToggleCenterCard) },
-            )
+    AxCard(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             FlipArea(
                 state = state,
                 widgetDataSource = widgetDataSource,
                 onToggle = { onAction(HomeAction.ToggleCenterCard) },
+                onPinWidgets = { onAction(HomeAction.OpenTelemetry) },
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
@@ -96,47 +93,17 @@ internal fun CenterCard(
                 )
             }
         }
-    }
-}
-
-/** Model name (opens Models) with the flip toggle on the right; the name stays centred. */
-@Composable
-private fun NameRow(
-    name: String,
-    showingWidgets: Boolean,
-    onOpenModels: () -> Unit,
-    onToggle: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(AxDimens.MinTouch),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Spacer(Modifier.size(AxDimens.MinTouch))
-        val openModels = stringResource(R.string.home_cd_open_models)
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .clickable(role = Role.Button, onClickLabel = openModels, onClick = onOpenModels),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = name,
-                style = AxTheme.typography.title,
-                color = AxTheme.colors.text,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
+        if (state.hasPinnedWidgets) {
+            val showingWidgets = state.centerCard == HomeCenterCard.WIDGETS
+            AxIconButton(
+                icon = if (showingWidgets) AxIcons.Image else AxIcons.Widgets,
+                contentDescription = stringResource(if (showingWidgets) R.string.home_cd_show_picture else R.string.home_cd_show_widgets),
+                onClick = { onAction(HomeAction.ToggleCenterCard) },
+                modifier = Modifier.align(Alignment.TopEnd),
+                variant = AxIconButtonVariant.Raised,
+                tint = AxTheme.colors.textMuted,
             )
         }
-        AxIconButton(
-            icon = if (showingWidgets) AxIcons.Image else AxIcons.Widgets,
-            contentDescription = stringResource(if (showingWidgets) R.string.home_cd_show_picture else R.string.home_cd_show_widgets),
-            onClick = onToggle,
-            tint = AxTheme.colors.textMuted,
-        )
     }
 }
 
@@ -150,9 +117,10 @@ private fun FlipArea(
     state: HomeUiState,
     widgetDataSource: WidgetDataSource,
     onToggle: () -> Unit,
+    onPinWidgets: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val showWidgets = state.centerCard == HomeCenterCard.WIDGETS
+    val showWidgets = state.hasPinnedWidgets && state.centerCard == HomeCenterCard.WIDGETS
     val rotation by animateFloatAsState(
         targetValue = if (showWidgets) 180f else 0f,
         animationSpec = tween(FLIP_MILLIS),
@@ -167,7 +135,7 @@ private fun FlipArea(
         contentAlignment = Alignment.Center,
     ) {
         if (rotation <= 90f) {
-            PictureFace(state, onToggle)
+            PictureFace(state, onToggle, onPinWidgets)
         } else {
             // The back face is drawn mirrored by the rotation; turn it back.
             Box(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }) {
@@ -178,15 +146,22 @@ private fun FlipArea(
 }
 
 @Composable
-private fun PictureFace(state: HomeUiState, onToggle: () -> Unit) {
+private fun PictureFace(state: HomeUiState, onToggle: () -> Unit, onPinWidgets: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        // Without pinned widgets there is nothing to flip to: the picture is not a button then.
+        val flip = if (state.hasPinnedWidgets) {
+            Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.home_cd_show_widgets), onClick = onToggle)
+        } else {
+            Modifier
+        }
         AxWell(
             modifier = Modifier
                 .fillMaxHeight()
                 .aspectRatio(MODEL_PICTURE_ASPECT, matchHeightConstraintsFirst = true)
-                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.home_cd_show_widgets), onClick = onToggle),
+                .then(flip),
             cornerRadius = 16.dp,
             clipContent = true,
+            contentAlignment = Alignment.TopStart,
         ) {
             ModelPicture(
                 picturePath = state.picturePath,
@@ -194,6 +169,14 @@ private fun PictureFace(state: HomeUiState, onToggle: () -> Unit) {
                 type = state.modelType,
                 modifier = Modifier.fillMaxSize(),
             )
+            if (!state.hasPinnedWidgets) {
+                AxButton(
+                    text = stringResource(R.string.home_pin_widgets),
+                    onClick = onPinWidgets,
+                    modifier = Modifier.padding(start = 6.dp, top = 2.dp),
+                    icon = AxIcons.Pin,
+                )
+            }
         }
     }
 }

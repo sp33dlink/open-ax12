@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.openax12.core.data.ModelRepository
-import org.openax12.core.model.HomeCenterCard
 import org.openax12.core.model.HomePreferences
 import org.openax12.core.runtime.AppGraph
 import org.openax12.core.runtime.ConfigSession
@@ -21,8 +20,8 @@ import org.openax12.core.runtime.RuntimeEngine
 /** What the user can do on the home screen. Navigation actions are handled by the entry, the rest by the [HomeViewModel]. */
 internal sealed interface HomeAction {
 
-    /** Tap on the model name: open the Models screen. */
-    data object OpenModels : HomeAction
+    /** Open the Telemetry screen to pin widgets (hint on the picture of a model without pinned widgets). */
+    data object OpenTelemetry : HomeAction
 
     /** Flip the centre card between the model picture and the pinned telemetry widgets. */
     data object ToggleCenterCard : HomeAction
@@ -67,15 +66,11 @@ internal class HomeViewModel(
     /** Handles the actions that change state; navigation actions are ignored here. */
     fun onAction(action: HomeAction) {
         when (action) {
-            HomeAction.ToggleCenterCard -> updateHome {
-                it.copy(
-                    centerCard = if (it.centerCard == HomeCenterCard.PICTURE) HomeCenterCard.WIDGETS else HomeCenterCard.PICTURE,
-                )
-            }
+            HomeAction.ToggleCenterCard -> viewModelScope.launch { models.updateExtras(::toggleCenterCard) }
             is HomeAction.SelectChannelPage -> updateHome { it.copy(channelPage = action.page.coerceIn(0, CHANNEL_PAGES - 1)) }
             is HomeAction.SelectInputPage -> updateHome { it.copy(inputPage = action.page.coerceAtLeast(0)) }
             is HomeAction.ResetTimer -> viewModelScope.launch { runtime.resetTimer(action.index) }
-            HomeAction.OpenModels, HomeAction.OpenTimerSettings -> Unit
+            HomeAction.OpenTelemetry, HomeAction.OpenTimerSettings -> Unit
         }
     }
 

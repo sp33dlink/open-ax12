@@ -61,7 +61,7 @@ private val Pinned: List<WidgetConfig> = listOf(
 )
 
 private fun extras(
-    centerCard: HomeCenterCard = HomeCenterCard.PICTURE,
+    centerCard: HomeCenterCard? = null,
     inputPage: Int = 0,
     channelPage: Int = 0,
     modelType: ModelType = ModelType.GLIDER,
@@ -97,11 +97,12 @@ private fun config(stick: StickMode = StickMode.MODE_2, thirdTimer: Boolean = fa
     )
 }
 
+private const val ModelName = "Sunseeker 3.4"
+
 private fun state(
     extras: ModelExtras = extras(),
     config: WorkingConfig = config(),
-    name: String = "Sunseeker 3.4",
-) = buildHomeState(ModelEntry(id = "m1", name = name, type = extras.modelType, isCurrent = true), extras, config)
+) = buildHomeState(ModelEntry(id = "m1", name = ModelName, type = extras.modelType, isCurrent = true), extras, config)
 
 /** Live frame of a glider on the field: throttle closed, a little elevator, flaps switch up. */
 private fun frame(
@@ -158,7 +159,7 @@ private fun Frame(
             modifier = Modifier.background(Brush.verticalGradient(listOf(colors.backgroundTop, colors.background))),
             statusBar = {
                 AxStatusBar(
-                    title = state.modelName.ifBlank { "open-ax12" },
+                    title = ModelName,
                     linkQuality = { 98 },
                     rxVoltage = { 7.9f },
                     txVoltage = { 8.1f },
@@ -181,17 +182,41 @@ private fun Frame(
     }
 }
 
-/** Default view: model picture, two timers (T1 running), stock first page (SA-SF above S1 / S2), throttle stick at the bottom. */
+/** Default view of a model with pinned widgets: the widgets fill the centre card, the name is only in the status bar. */
 @PreviewTest
 @Ax12Preview
 @Composable
-fun HomePictureScreenshot() = Frame(AxThemeMode.LIGHT, state(), frame())
+fun HomeWidgetsScreenshot() = Frame(AxThemeMode.LIGHT, state(), frame())
 
-/** Centre card flipped to the pinned telemetry widgets. */
+/** Dark scheme, widgets by default. */
 @PreviewTest
 @Ax12Preview
 @Composable
-fun HomeWidgetsScreenshot() = Frame(AxThemeMode.LIGHT, state(extras(centerCard = HomeCenterCard.WIDGETS)), frame())
+fun HomeDarkScreenshot() = Frame(AxThemeMode.DARK, state(extras(modelType = ModelType.MULTIROTOR)), frame(left = 0 to 0, right = 0 to 0))
+
+/** Flipped by the user: the model picture with the flip button, stock first page (SA-SF above S1 / S2). */
+@PreviewTest
+@Ax12Preview
+@Composable
+fun HomePictureScreenshot() = Frame(AxThemeMode.LIGHT, state(extras(centerCard = HomeCenterCard.PICTURE)), frame())
+
+/** Flipped by the user, dark scheme. */
+@PreviewTest
+@Ax12Preview
+@Composable
+fun HomePictureDarkScreenshot() = Frame(AxThemeMode.DARK, state(extras(centerCard = HomeCenterCard.PICTURE)), frame())
+
+/** No widgets pinned: the picture with the hint that opens Telemetry; no flip button. */
+@PreviewTest
+@Ax12Preview
+@Composable
+fun HomeNoWidgetsScreenshot() = Frame(AxThemeMode.LIGHT, state(extras(pinned = emptyList())), frame())
+
+/** No widgets pinned, dark scheme. */
+@PreviewTest
+@Ax12Preview
+@Composable
+fun HomeNoWidgetsDarkScreenshot() = Frame(AxThemeMode.DARK, state(extras(pinned = emptyList())), frame())
 
 /** Channel list page 2 (CH09-CH16), input page 2 (SG, SH and the pots) and a third timer. */
 @PreviewTest
@@ -215,28 +240,22 @@ fun HomeModesPageScreenshot() = Frame(
     logic = LogicalSwitchStates.NONE.with(0, true).with(3, true).with(9, true),
 )
 
-/** Dark scheme. */
-@PreviewTest
-@Ax12Preview
-@Composable
-fun HomeDarkScreenshot() = Frame(AxThemeMode.DARK, state(extras(modelType = ModelType.MULTIROTOR)), frame(left = 0 to 0, right = 0 to 0))
-
 /** High-contrast (sun) scheme with the widgets face. */
 @PreviewTest
 @Ax12Preview
 @Composable
 fun HomeHighContrastScreenshot() = Frame(
     AxThemeMode.HIGH_CONTRAST,
-    state(extras(centerCard = HomeCenterCard.WIDGETS)),
+    state(),
     frame(left = 100 to 0, right = 100 to 100),
 )
 
-/** Radio not ready yet: empty configuration and no live data; a model without a name and without pinned widgets. */
+/** Radio not ready yet: empty configuration and no live data; without pinned widgets. */
 @PreviewTest
 @Ax12Preview
 @Composable
 fun HomeEmptyScreenshot() = Frame(
     AxThemeMode.LIGHT,
-    buildHomeState(null, extras(centerCard = HomeCenterCard.WIDGETS, pinned = emptyList()), WorkingConfig.EMPTY),
+    buildHomeState(null, extras(pinned = emptyList()), WorkingConfig.EMPTY),
     LiveSnapshot.EMPTY,
 )
