@@ -3,7 +3,7 @@
     <!-- Centre card -->
     <string name="home_cd_show_widgets">Show telemetry widgets</string>
     <string name="home_cd_show_picture">Show model picture</string>
-    <string name="home_pin_widgets">Pin widgets</string>
+    <string name="home_pin_widgets">Pin telemetry widgets</string>
 
     <!-- Timers -->
     <string name="home_timer_label">T%1$d</string>
