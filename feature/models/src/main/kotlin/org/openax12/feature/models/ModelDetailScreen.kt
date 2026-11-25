@@ -45,7 +45,7 @@ import org.openax12.core.designsystem.AxSettingRow
 import org.openax12.core.designsystem.AxTheme
 import org.openax12.core.designsystem.AxValueBox
 import org.openax12.core.designsystem.ConfirmDialog
-import org.openax12.core.designsystem.DoubleConfirmDialog
+import org.openax12.core.designsystem.HoldConfirmDialog
 import org.openax12.core.designsystem.ModelPicture
 import org.openax12.core.designsystem.NumberField
 import org.openax12.core.designsystem.TextEntryDialog
@@ -261,7 +261,7 @@ private fun DetailsColumn(
             AxButton(
                 text = stringResource(R.string.models_delete),
                 onClick = { actions.onShowDialog(DetailDialog.Delete) },
-                variant = AxButtonVariant.Outlined,
+                variant = AxButtonVariant.DangerOutlined,
                 icon = AxIcons.Delete,
                 enabled = !entry.isCurrent,
                 contentPadding = pad,
@@ -277,6 +277,25 @@ private fun DetailsColumn(
             )
         }
     }
+}
+
+/**
+ * One-step delete confirmation: the red hold button fills while it is held.
+ *
+ * @param fillOverride fixes the fill fraction (0..1) of the hold button for screenshots
+ */
+@Composable
+internal fun DeleteModelDialog(name: String, onConfirm: () -> Unit, onDismiss: () -> Unit, fillOverride: Float? = null) {
+    HoldConfirmDialog(
+        title = stringResource(R.string.models_delete_title, name),
+        message = stringResource(R.string.models_delete_message),
+        consequence = stringResource(R.string.models_delete_second),
+        confirmLabel = stringResource(R.string.models_delete_hold),
+        confirmDescription = stringResource(R.string.models_delete_hold_description),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        fillOverride = fillOverride,
+    )
 }
 
 @Composable
@@ -314,11 +333,8 @@ private fun DetailDialogs(entry: ModelEntry, state: ModelDetailUiState, actions:
             onConfirm = actions.onSetNotes,
             onDismiss = actions.onDismissDialog,
         )
-        DetailDialog.Delete -> DoubleConfirmDialog(
-            title = stringResource(R.string.models_delete_title, entry.name),
-            message = stringResource(R.string.models_delete_message),
-            secondMessage = stringResource(R.string.models_delete_second),
-            confirmLabel = stringResource(R.string.models_delete_hold),
+        DetailDialog.Delete -> DeleteModelDialog(
+            name = entry.name,
             onConfirm = actions.onDelete,
             onDismiss = actions.onDismissDialog,
         )

@@ -140,7 +140,7 @@ internal class DefaultModelRepository(
         if (nameTaken(valid)) return@locked failure(DataError.NAME_EXISTS, valid)
         if (!radioReady()) return@locked notReady()
         val modelsDir = modelsDir() ?: return@locked storageFailure()
-        val target = radio.createModelInfo()?.takeIf { it.filePath.isNotEmpty() }
+        val target = newSdkTarget()
             ?: return@locked failure(DataError.RADIO_FAILED, "rcCreateModelCfg failed")
         if (!radio.saveWorkingConfigToModel(target.copy(name = valid))) {
             return@locked failure(DataError.RADIO_FAILED, "rcSaveCurrentCfgToModel failed")
@@ -264,9 +264,15 @@ internal class DefaultModelRepository(
         if (!radioReady()) return@locked notReady()
         val info = sdkModel(entry)
         if (info != null) {
-            // The SDK's current model must never be deleted, whatever the index believes.
-            if (radio.getCurrentModel()?.filePath == info.filePath) return@locked failure(DataError.IS_CURRENT_MODEL, entry.name)
-            if (!radio.deleteModel(info.filePath)) return@locked failure(DataError.RADIO_FAILED, "rcDeleteModel failed")
+            // Another entry may stand on the same SDK file (legacy state, see newSdkTarget): then the
+            // file stays and only this library entry goes. This must not be mistaken for "current".
+            val sharedWithOthers = index.entries.any { it.id != entry.id && it.sdkFile == info.filePath }
+            if (!sharedWithOthers) {
+                // The SDK's current model must never be deleted, whatever the index believes.
+                val currentFile = radio.getCurrentModel(index.entry(index.currentId)?.sdkFile)?.filePath
+                if (currentFile == info.filePath) return@locked failure(DataError.IS_CURRENT_MODEL, entry.name)
+                if (!radio.deleteModel(info.filePath)) return@locked failure(DataError.RADIO_FAILED, "rcDeleteModel failed")
+            }
         }
         folderOf(entry)?.deleteRecursively()
         shadowDir(entry.id).deleteRecursively()
@@ -708,7 +714,7 @@ internal class DefaultModelRepository(
         old.entries.filter { it.id !in claimed }.forEach { shadowDir(it.id).deleteRecursively() }
 
         // 5. The current model and the pending device write.
-        val currentFile = radio.getCurrentModel()?.filePath
+        val currentFile = radio.getCurrentModel(old.entry(old.currentId)?.sdkFile)?.filePath
         val currentId = claimed.values.firstOrNull { it.second.filePath == currentFile }?.first?.id
             ?: old.currentId?.takeIf { it in claimed }
         var inSync = old.deviceInSync
@@ -1183,7 +1189,7 @@ internal class DefaultModelRepository(
      * `rcSaveCurrentCfgToModel` and the import repeated on top of it.
      */
     private suspend fun importIntoSdk(source: File, name: String): ModelInfo? {
-        val target = radio.createModelInfo()?.takeIf { it.filePath.isNotEmpty() } ?: return null
+        val target = newSdkTarget() ?: return null
         var imported = radio.importModel(source.absolutePath, target.filePath)
         var found = findSdkModel(target.filePath)
         if (!imported || found == null) {
@@ -1196,6 +1202,23 @@ internal class DefaultModelRepository(
             }
         }
         return enforceName(found.filePath, name) ?: found
+    }
+
+    /**
+     * A target path for a new SDK model (`rcCreateModelCfg`) that no SDK model uses yet.
+     *
+     * The SDK names its model files after the current time in **seconds**, so two models created
+     * within the same second get the same path and the second silently overwrites the first
+     * (observed on the radio: several library models ended up on one SDK file). The call is
+     * repeated after the clock has moved on until the path is free.
+     */
+    private suspend fun newSdkTarget(): ModelInfo? {
+        repeat(NEW_TARGET_ATTEMPTS) {
+            val target = radio.createModelInfo()?.takeIf { it.filePath.isNotEmpty() } ?: return null
+            if (findSdkModel(target.filePath) == null) return target
+            delay(NEW_TARGET_WAIT_MS)
+        }
+        return null
     }
 
     /** Makes sure the SDK model stored in [filePath] is called [name] (an import brings its own name along). */
@@ -1454,6 +1477,8 @@ internal class DefaultModelRepository(
         private const val EXPORT_WAIT_STEPS = 40
         private const val EXPORT_WAIT_STEP_MS = 25L
         private const val EMPTY_LIST_RETRY_MS = 300L
+        private const val NEW_TARGET_ATTEMPTS = 4
+        private const val NEW_TARGET_WAIT_MS = 1_100L
 
         /** `modelMatch` is an unsigned 32-bit field in the SDK. */
         private const val MAX_MODEL_MATCH = 0xFFFF_FFFFL
