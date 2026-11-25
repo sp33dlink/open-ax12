@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Common actions -->
+    <string name="ax_ok">OK</string>
+    <string name="ax_cancel">Cancel</string>
+    <string name="ax_continue">Continue</string>
+    <string name="ax_back">Back</string>
+    <string name="ax_save">Save</string>
+    <string name="ax_saving">Saving…</string>
+    <string name="ax_discard">Discard</string>
+    <string name="ax_retry">Retry</string>
+    <string name="ax_default">Default</string>
+    <string name="ax_clear">Clear</string>
+    <string name="ax_search">Search</string>
+    <string name="ax_all">All</string>
+    <string name="ax_choose">Choose</string>
+    <string name="ax_no_matches">No matches</string>
+    <string name="ax_increase">Increase</string>
+    <string name="ax_decrease">Decrease</string>
+    <string name="ax_backspace">Delete last digit</string>
+
+    <!-- Bottom bar destinations (content descriptions) -->
+    <string name="ax_dest_system">System</string>
+    <string name="ax_dest_model_setup">Model setup</string>
+    <string name="ax_dest_models">Models</string>
+    <string name="ax_dest_home">Home</string>
+    <string name="ax_dest_telemetry">Telemetry</string>
+    <string name="ax_dest_touch_lock">Touch lock</string>
+    <string name="ax_dest_help">Help</string>
+
+    <!-- Status bar -->
+    <string name="ax_sim_badge">SIM</string>
+    <string name="ax_cd_link_quality">Link quality</string>
+    <string name="ax_cd_rx_voltage">Receiver voltage</string>
+    <string name="ax_cd_tx_voltage">Transmitter voltage</string>
+
+    <!-- Live components -->
+    <string name="ax_cd_stick_pad">Stick position</string>
+    <string name="ax_cd_timer_settings">Timer settings</string>
+    <string name="ax_cd_model_picture">Model picture</string>
+
+    <!-- Number pad -->
+    <string name="ax_number_title">Enter value</string>
+    <string name="ax_number_range">%1$s … %2$s</string>
+    <string name="ax_number_out_of_range">Out of range</string>
+
+    <!-- Text entry -->
+    <string name="ax_length_of">%1$d / %2$d</string>
+
+    <!-- Dialogs -->
+    <string name="ax_step_of">Step %1$d of %2$d</string>
+    <string name="ax_unsaved_title">Unsaved changes</string>
+    <string name="ax_unsaved_message">The model setup has changes that are not saved to the radio yet. Save writes them to the transmitter and stores the model; Discard restores the last saved state.</string>
+
+    <!-- Touch lock -->
+    <string name="ax_touch_locked">Touch locked · hold to unlock</string>
+</resources>

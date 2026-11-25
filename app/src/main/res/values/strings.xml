@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OpenAX12</string>
+
+    <!-- Startup screens -->
+    <string name="startup_connecting">Connecting to the radio…</string>
+    <string name="startup_loading_library">Loading the model library…</string>
+    <string name="startup_starting">Starting…</string>
+    <string name="startup_error_title">Cannot connect to the radio</string>
+    <string name="startup_error_retry">Retry</string>
+    <string name="startup_error_continue">Continue without radio</string>
+    <string name="startup_error_stock_hint">Another app may be using the radio\'s serial port. Force-close the stock RadioMaster app (Settings, Apps, RadioMaster, Force stop), then tap Retry. Only one app can talk to the radio at a time.</string>
+    <string name="startup_error_native_hint">The radio library could not be loaded. Set the radio backend to Simulator in the system settings to try the app without a radio.</string>
+    <string name="startup_error_firmware_hint">The radio firmware is not compatible with this app. Firmware updates are done in the stock RadioMaster app.</string>
+    <string name="startup_error_footer">You can continue without the radio to open the model library, the settings and the help; nothing can be sent to the radio until the connection works.</string>
+    <string name="connection_lost_title">Radio connection lost</string>
+    <string name="connection_lost_dismiss">Dismiss</string>
+
+    <!-- Foreground service notification -->
+    <string name="notification_channel_name">Radio connection</string>
+    <string name="notification_channel_description">Shown while the app keeps the radio connection, voice and logging running.</string>
+    <string name="notification_text_starting">Starting…</string>
+    <string name="notification_text_connecting">Connecting to the radio…</string>
+    <string name="notification_text_failed">No radio connection</string>
+    <string name="notification_text_link">Link %1$d%%</string>
+    <string name="notification_text_no_link">No link</string>
+    <string name="notification_action_quit">Quit</string>
+
+    <!-- Runtime messages (RuntimeMessages) -->
+    <string name="message_logging_started">Logging started</string>
+    <string name="message_logging_stopped">Logging stopped</string>
+    <string name="message_logging_failed">Logging failed</string>
+    <string name="message_telemetry_lost">Telemetry lost</string>
+    <string name="message_telemetry_recovered">Telemetry recovered</string>
+    <string name="message_low_tx_voltage">Transmitter battery low</string>
+    <string name="message_flight_reset">Flight reset</string>
+    <string name="message_sound_file_missing">Sound file missing: %1$s</string>
+    <string name="message_screenshot_saved">Screenshot saved</string>
+    <string name="message_screenshot_failed">Screenshot failed</string>
+    <string name="message_save_failed">Saving failed</string>
+    <string name="message_save_failed_detail">Saving failed: %1$s</string>
+    <string name="unsaved_linked_title">Radio is linked</string>
+    <string name="unsaved_linked_message">The receiver is connected. Saving changes what the radio sends to the aircraft right away. Write the settings now?</string>
+    <string name="unsaved_linked_confirm">Write</string>
+    <string name="message_import_blocked">Save or discard the changes first, then open the file again</string>
+
+    <!-- Popups -->
+    <string name="alarm_popup_title">Alarm</string>
+    <string name="alarm_popup_ok">OK</string>
+    <string name="preflight_title">Pre-flight check</string>
+    <string name="preflight_message">These inputs are not at their preset position: %1$s.</string>
+    <string name="preflight_skip">Skip</string>
+    <string name="preflight_open">Details</string>
+</resources>

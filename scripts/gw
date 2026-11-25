@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Serialises Gradle invocations so that several agents/terminals can share one checkout.
+# Usage: scripts/gw <gradle args>
+# Exit code 75: the lock stayed busy for too long — simply retry.
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+LOCK="$ROOT/.gradle-agent.lock"
+WAITED=0
+MAX_WAIT="${GW_MAX_WAIT:-420}"
+
+while ! mkdir "$LOCK" 2>/dev/null; do
+  pid="$(cat "$LOCK/pid" 2>/dev/null)"
+  if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+    rm -rf "$LOCK"
+    continue
+  fi
+  if [ "$WAITED" -ge "$MAX_WAIT" ]; then
+    echo "scripts/gw: Gradle lock busy for ${WAITED}s (held by pid ${pid:-?}); retry." >&2
+    exit 75
+  fi
+  sleep 3
+  WAITED=$((WAITED + 3))
+done
+
+echo $$ > "$LOCK/pid"
+trap 'rm -rf "$LOCK"' EXIT
+trap 'exit 143' TERM INT HUP
+
+cd "$ROOT" || exit 1
+./gradlew "$@"

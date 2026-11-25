@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default picture of a model of unknown type (paper plane), 4:3. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="400dp"
+    android:height="300dp"
+    android:viewportWidth="400"
+    android:viewportHeight="300">
+    <path
+        android:fillColor="#2F7FB5"
+        android:pathData="M52,146 L348,52 L266,250 L208,180 Z" />
+    <path
+        android:fillColor="#1D5F8E"
+        android:pathData="M208,180 L348,52 L168,152 Z" />
+    <path
+        android:fillColor="#1FB8A6"
+        android:pathData="M208,180 L214,236 L238,216 Z" />
+</vector>

@@ -1,0 +1,27 @@
+# Not done
+
+One line per item: `- [module] what is missing and why`.
+
+- [home] Manual timer start / stop by tap (SPEC 2): not possible, the SDK only offers `rcResetTimer`; a timer runs while its configured switch condition holds. Home maps tap to the timer settings and long-press to reset.
+- [modelsetup] Timer "mode" picker (SPEC 3.7): the values of `mode` / `loopMode` / `outputMode` are undocumented (assumption 23), so the Timers tab shows them as plain numbers until they are identified on the AX12.
+- [contracts] `:core:widgets` and `:core:designsystem` are outside the contract step's paths: the shared signatures (`WidgetGrid`, `WidgetContent`, `defaultModelPicture`, `ModelPicture`, `UnsavedChangesDialog`) are fixed in `docs/CONTRACTS.md` ("Shared UI contracts") but still have to be created by those modules' agents.
+- [audio] The Android side of `:core:audio` (tone thread on `AudioTrack`, text-to-speech, media players, audio focus, vibrator) passed its on-device smoke check on the API 35 emulator only (`SmokeInstrumentation`, run instructions in its KDoc); it has not run on API 28 / the AX12 yet (assumptions 9, 26-28), and audible quality (latency, clicks, ducking levels) has not been judged by ear.
+- [audio] Spoken unit names exist for English and German only; for every other speech language `spokenValue` returns the number with the unit symbol ("12,4 V") and leaves the expansion to the speech engine.
+- [models] The per-model checklist (`ModelExtras.checklist`) is not edited on the model detail screen: SPEC section 8 puts "per-model checklist text" into the System / pre-flight area. The notes field is on the detail screen.
+- [models] Notes are edited in a single-line text dialog (500 characters at most); there is no multi-line editor in `:core:designsystem` yet.
+- [telemetry] A new widget goes to the first free spot of the page (shrunk if needed): `TelemetryWidgetEditor` carries no target cell, so tapping an empty cell cannot pre-select the position. Drag the widget afterwards.
+- [telemetry] No in-app viewer for flight logs (list, share, delete only) and no "test alarm" button; SDK-side telemetry notifications (`TelemetryAlarm`) are not exposed, only the app-side alarms of SPEC 5.
+- [system] Diagnostics cannot read the raw (unmapped) enum codes of assumption 25 nor try the alternative timer index mapping `(3, 0)` of assumption 21: the `Radio` interface only offers mapped values and the in-group timer index. It shows the mapped codes and reads counters 0..2 in-group; a raw-code probe needs a new `Radio` function (core change).
+- [system] The USB passthrough state and the ELRS command progress are not readable from the SDK; the System and ELRS screens show what the app last sent / was acknowledged.
+- [system] Firmware version display needs a device info answer (`requestDeviceInfo`); until it arrives (or on the simulator) the firmware group says "Not reported yet". No firmware or app update API is called anywhere in the module.
+- [system] Screens were verified with Compose screenshot renders and unit tests only; touch behaviour of the simulator pads, the document pickers (backup) and the share sheet has not been tried on a device or the emulator.
+- [modelsetup] Mixes: the order of the lines of a channel cannot be changed (the SDK has no reorder call); a new input is appended. Replace / multiply lines depend on that order.
+- [modelsetup] Throttle cut helper (SPEC 3.5): a button that opens a pre-filled dialog (channel found from the throttle mix, switch, −100 %), then Apply — two taps, not one, because the switch is the user's choice (no default can be assumed to be wired).
+- [modelsetup] Weights, limits, middle and lock values are limited to ±100 %; whether the firmware accepts extended ranges (e.g. ±150 %) is not documented.
+- [modelsetup] Timer voice options (`TimerVoiceOptions`) exist for the three timers only; counters have none in the model.
+- [modelsetup] Pre-flight check screen and popup are not part of this module (`:feature:system` / the app shell); the Input check tab only edits the presets.
+- [functions] Compiler validation problems (`PlanConflictKind.INVALID_SETTINGS`, e.g. "CH1 is assigned twice") carry only the engine's English `detail` text; the flight-modes and wing tabs and the apply dialog show it as it is, all other conflict kinds are localised from their fields.
+- [functions] The flight-modes tab cannot tell a 2-position from a 3-position switch (`SourceInfo` has no position count), so it always offers Up / Middle / Down; a mode on Middle of a 2-position switch is simply never selected and the compiler treats that position as the default mode.
+- [functions] The wing / flaps wizard is for fixed wings and gliders (`WingCompiler`). Multirotor and helicopter use the Flight modes tab (preset: mode value on CH5 for multirotors, normal / idle-up names for helicopters) and the Mixes tab; there is no swashplate or throttle-curve wizard because the engine has no compiler for it.
+- [app] Touch behaviour of the shell (bottom bar, touch lock hold, unsaved-changes dialog) and the share / open `.oax12` intents were not exercised on the emulator or the AX12; only the start, Home with simulator data and the startup error screen render (screenshot) were checked.
+- [app] The runtime popups (alarm, pre-flight) and the screenshot function are implemented but have not been triggered on a device.

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default picture of a helicopter (side view), 4:3. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="400dp"
+    android:height="300dp"
+    android:viewportWidth="400"
+    android:viewportHeight="300">
+    <path
+        android:pathData="M48,70 L336,70"
+        android:strokeColor="#1FB8A6"
+        android:strokeLineCap="round"
+        android:strokeWidth="8" />
+    <path
+        android:pathData="M192,70 L192,96"
+        android:strokeColor="#1D5F8E"
+        android:strokeLineCap="round"
+        android:strokeWidth="12" />
+    <path
+        android:fillColor="#1D5F8E"
+        android:pathData="M336,142 L352,100 L366,100 L362,144 Z" />
+    <path
+        android:fillColor="#2F7FB5"
+        android:pathData="M84,152 C84,114 118,92 166,92 L212,92 C244,92 262,108 272,130 L354,140 C362,141 366,146 366,152 C366,158 362,162 354,163 L268,170 C254,194 232,206 204,206 L146,206 C110,206 84,186 84,152 Z" />
+    <path
+        android:fillColor="#BFE6F2"
+        android:pathData="M98,148 C100,122 124,106 160,104 L168,148 Z" />
+    <path
+        android:fillAlpha="0.22"
+        android:fillColor="#2F7FB5"
+        android:pathData="M352,126 a24,24 0 1 0 0.100,0 z"
+        android:strokeColor="#2F7FB5"
+        android:strokeWidth="5" />
+    <path
+        android:pathData="M104,240 L262,240 M140,206 L132,240 M218,206 L228,240"
+        android:strokeColor="#1D5F8E"
+        android:strokeLineCap="round"
+        android:strokeWidth="7" />
+</vector>

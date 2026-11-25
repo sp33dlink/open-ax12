@@ -1,0 +1,31 @@
+# Gradle
+.gradle/
+build/
+.kotlin/
+.gradle-agent.lock/
+.gradle-agent.lock
+
+# Native build intermediates
+.cxx/
+.externalNativeBuild/
+
+# Machine-specific
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+captures/
+
+# Signing material must never be committed
+*.jks
+*.keystore
+keystore.properties
+
+# RadioMaster SDK: fetched and verified by scripts/fetch-sdk.sh, never committed
+/sdk/src/main/jniLibs/
+/sdk/src/main/cpp/include/
+/sdk/licenses/
+/docs/sdk/
+*.download

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default picture of a glider (top view), 4:3. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="400dp"
+    android:height="300dp"
+    android:viewportWidth="400"
+    android:viewportHeight="300">
+    <path
+        android:fillColor="#2F7FB5"
+        android:pathData="M200,104 L372,119 C380,120 384,124 384,129 C384,134 380,138 372,138 L200,144 L28,138 C20,138 16,134 16,129 C16,124 20,120 28,119 Z" />
+    <path
+        android:fillColor="#1FB8A6"
+        android:pathData="M340,116.200 L372,119 C380,120 384,124 384,129 C384,134 380,138 372,138 L340,139.100 Z M60,116.200 L28,119 C20,120 16,124 16,129 C16,134 20,138 28,138 L60,139.100 Z" />
+    <path
+        android:fillColor="#2F7FB5"
+        android:pathData="M200,236 L252,241 C257,242 259,245 259,248 C259,251 257,253 252,253 L200,257 L148,253 C143,253 141,251 141,248 C141,245 143,242 148,241 Z" />
+    <path
+        android:fillColor="#1D5F8E"
+        android:pathData="M200,36 C208,36 212,58 212,90 L207,236 C206,248 204,258 200,266 C196,258 194,248 193,236 L188,90 C188,58 192,36 200,36 Z" />
+    <path
+        android:fillColor="#BFE6F2"
+        android:pathData="M200,54 C204.500,54 206.500,66 206.500,79 C206.500,92 204.500,100 200,100 C195.500,100 193.500,92 193.500,79 C193.500,66 195.500,54 200,54 Z" />
+</vector>

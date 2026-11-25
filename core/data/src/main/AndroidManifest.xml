@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Shares exported models (.oax12), library backups and flight logs. The authority is
+             derived from the application id: see OpenAx12FileProvider.authority(). -->
+        <provider
+            android:name="org.openax12.core.data.OpenAx12FileProvider"
+            android:authorities="${applicationId}.openax12.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <!-- The static FileProvider.getUriForFile() reads the paths from this meta-data; the
+                 constructor argument of OpenAx12FileProvider alone is not enough. -->
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/openax12_file_paths" />
+        </provider>
+    </application>
+
+</manifest>

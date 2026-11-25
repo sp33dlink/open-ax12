@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Common -->
+    <string name="models_back">Back</string>
+    <string name="models_close">Close</string>
+    <string name="models_active">Active</string>
+    <string name="models_busy">Working…</string>
+    <string name="models_busy_switching">Writing the model to the radio…</string>
+    <string name="models_busy_creating">Creating the model…</string>
+
+    <!-- Model types -->
+    <string name="models_type_glider">Glider</string>
+    <string name="models_type_plane">Plane</string>
+    <string name="models_type_wing">Flying wing</string>
+    <string name="models_type_multirotor">Multirotor</string>
+    <string name="models_type_helicopter">Helicopter</string>
+    <string name="models_type_other">Other</string>
+    <string name="models_type_match">%1$s · ID %2$d</string>
+
+    <!-- Last used -->
+    <string name="models_last_used_never">Never used</string>
+    <string name="models_last_used_today">Used today, %1$s</string>
+    <string name="models_last_used_yesterday">Used yesterday</string>
+    <string name="models_last_used_on">Used %1$s</string>
+
+    <!-- Model list -->
+    <string name="models_title">Models</string>
+    <plurals name="models_count">
+        <item quantity="one">%d model</item>
+        <item quantity="other">%d models</item>
+    </plurals>
+    <string name="models_sort_name">Name</string>
+    <string name="models_sort_recent">Recent</string>
+    <string name="models_layout_grid">Show as grid</string>
+    <string name="models_layout_list">Show as list</string>
+    <string name="models_import">Import…</string>
+    <string name="models_new">New model</string>
+    <string name="models_select">Select</string>
+    <string name="models_on_radio">On the radio</string>
+    <string name="models_not_on_radio">Not on radio</string>
+    <string name="models_row_detail">%1$s · %2$s</string>
+    <string name="models_cd_changed_outside">Folder changed outside the app</string>
+    <string name="models_empty_title">No models yet</string>
+    <string name="models_empty_message">Create a model from a template or import a model file.</string>
+    <string name="models_selected">%1$s is now the model of the radio.</string>
+    <string name="models_written">The model was written to the radio.</string>
+
+    <!-- Banners -->
+    <string name="models_banner_no_storage">The model library cannot be stored: no writable storage is available.</string>
+    <string name="models_banner_permission">Storage access is missing, so the library lives in the app\'s own folder and other apps cannot reach it.</string>
+    <string name="models_banner_permission_action">Allow</string>
+    <plurals name="models_banner_external">
+        <item quantity="one">%d model folder was changed outside the app.</item>
+        <item quantity="other">%d model folders were changed outside the app.</item>
+    </plurals>
+    <string name="models_banner_review">Review</string>
+    <string name="models_banner_not_written">The loaded model is not written to the radio yet.</string>
+    <string name="models_banner_write">Write now</string>
+
+    <!-- Externally changed folders -->
+    <string name="models_change_title">\"%1$s\" changed outside the app</string>
+    <string name="models_change_message">The folder of this model was edited by another app or copied over from a PC. Re-importing replaces the app\'s copy with the folder (a snapshot is kept first). Keeping the app\'s copy overwrites the folder.</string>
+    <string name="models_change_new_title">New folder \"%1$s\"</string>
+    <string name="models_change_new_message">A model folder appeared in the library that the radio does not know. Import it to use it, or ignore it.</string>
+    <string name="models_change_position">%1$d of %2$d</string>
+    <string name="models_change_later">Later</string>
+    <string name="models_change_keep">Keep app copy</string>
+    <string name="models_change_reimport">Re-import</string>
+    <string name="models_change_ignore">Ignore</string>
+    <string name="models_change_import">Import</string>
+    <string name="models_change_accepted">%1$s was re-imported.</string>
+
+    <!-- Radio link / unsaved confirmation -->
+    <string name="models_link_title">Radio link is active</string>
+    <string name="models_link_message">The transmitter is linked to a receiver right now. This writes a different model to the radio and changes how the aircraft reacts.</string>
+    <string name="models_link_second">Only continue if the aircraft is safe: motor disarmed, propeller off, nobody near moving parts.</string>
+    <string name="models_link_hold">Hold to continue</string>
+
+    <!-- Detail -->
+    <string name="models_field_name">Name</string>
+    <string name="models_field_type">Model type</string>
+    <string name="models_field_match">ELRS model match</string>
+    <string name="models_field_notes">Notes</string>
+    <string name="models_notes_empty">Add notes…</string>
+    <string name="models_notes_title">Notes</string>
+    <string name="models_info_folder">Library folder: %1$s</string>
+    <string name="models_info_no_folder">The library folder is not available.</string>
+    <string name="models_picture_change">Change picture</string>
+    <string name="models_picture_remove">Use default picture</string>
+    <string name="models_picture_saved">Picture saved.</string>
+    <string name="models_duplicate">Duplicate</string>
+    <string name="models_export">Export</string>
+    <string name="models_snapshots">Snapshots</string>
+    <string name="models_delete">Delete</string>
+    <string name="models_delete_current_hint">The model of the radio cannot be deleted. Select another model first.</string>
+    <string name="models_rename">Rename</string>
+    <string name="models_rename_title">Rename model</string>
+    <string name="models_duplicate_title">Name of the copy</string>
+    <string name="models_renamed">Renamed to %1$s.</string>
+    <string name="models_duplicated">Copy %1$s created.</string>
+    <string name="models_deleted">%1$s was deleted.</string>
+    <string name="models_delete_title">Delete \"%1$s\"?</string>
+    <string name="models_delete_message">The model, its picture, notes and all its snapshots are removed from the radio and the library.</string>
+    <string name="models_delete_second">This cannot be undone. Export the model first if you may need it again.</string>
+    <string name="models_delete_hold">Hold to delete</string>
+    <string name="models_share_title">Share model</string>
+
+    <!-- Snapshots -->
+    <string name="models_snapshots_title">Snapshots</string>
+    <string name="models_snapshots_hint">Every save keeps a copy; the newest 20 are kept.</string>
+    <string name="models_snapshots_empty">There are no snapshots yet. One is made every time the model is saved.</string>
+    <string name="models_snapshot_line">%1$s · %2$s</string>
+    <string name="models_snapshot_reason_save">Saved</string>
+    <string name="models_snapshot_reason_restore">Before a restore</string>
+    <string name="models_snapshot_reason_reimport">Before a re-import</string>
+    <string name="models_restore">Restore</string>
+    <string name="models_restore_title">Restore snapshot?</string>
+    <string name="models_restore_message">Restore \"%1$s\" to its state of %2$s? The present state is kept as a safety snapshot.</string>
+    <string name="models_restore_current">The restored model is written to the radio.</string>
+    <string name="models_restore_current_dirty">The restored model is written to the radio and your unsaved changes are dropped.</string>
+    <string name="models_snapshot_restored">Snapshot restored.</string>
+    <string name="models_snapshot_delete_title">Delete snapshot?</string>
+    <string name="models_snapshot_delete_message">The snapshot of %1$s will be removed.</string>
+
+    <!-- Names -->
+    <string name="models_name_title">Model name</string>
+    <string name="models_name_placeholder">Enter a name</string>
+    <string name="models_name_empty">The name cannot be empty.</string>
+    <string name="models_name_too_long">The name is too long (32 characters at most).</string>
+    <string name="models_name_invalid">The name contains characters that are not allowed: \\ / : * ? \" &lt; &gt; |</string>
+    <string name="models_name_exists">A model with this name already exists.</string>
+
+    <!-- Create -->
+    <string name="models_create_title">New model</string>
+    <string name="models_create">Create</string>
+    <string name="models_created">%1$s was created and is now the model of the radio.</string>
+    <string name="models_template_glider">Glider</string>
+    <string name="models_template_glider_desc">2, 4 or 6 servos, camber, butterfly</string>
+    <string name="models_template_plane">Plane</string>
+    <string name="models_template_plane_desc">Aileron, elevator, throttle, rudder</string>
+    <string name="models_template_wing">Flying wing</string>
+    <string name="models_template_wing_desc">Elevons and throttle</string>
+    <string name="models_template_multirotor">Multirotor</string>
+    <string name="models_template_multirotor_desc">AETR, arm, mode, beeper</string>
+    <string name="models_template_helicopter">Helicopter</string>
+    <string name="models_template_helicopter_desc">Flybarless, idle-up, throttle hold</string>
+    <string name="models_template_blank">Blank model</string>
+    <string name="models_template_blank_desc">No mixes, you set everything up</string>
+    <string name="models_template_blank_name">New model</string>
+    <string name="models_opt_wing_servos">Wing servos</string>
+    <string name="models_opt_wing_servos_hint">2 ailerons, 4 with flaps, 6 with tips</string>
+    <string name="models_opt_tail">Tail</string>
+    <string name="models_opt_tail_normal">Normal</string>
+    <string name="models_opt_tail_v">V-tail</string>
+    <string name="models_opt_motor">Motor</string>
+    <string name="models_opt_motor_hint">Adds throttle cut on the arm switch</string>
+    <string name="models_opt_flaps">Flaps</string>
+    <string name="models_opt_rudder">Rudder</string>
+    <string name="models_opt_differential">Aileron differential</string>
+    <string name="models_opt_mode_switch">Mode switch</string>
+    <string name="models_opt_arm_switch">Arm switch</string>
+    <string name="models_opt_arm_switch_hint">Down = armed, every other position cuts the throttle</string>
+    <string name="models_opt_beeper_switch">Beeper switch</string>
+    <string name="models_opt_hold_switch">Throttle hold switch</string>
+    <string name="models_opt_hold_switch_hint">Down = throttle live, every other position holds</string>
+    <string name="models_opt_flap_switch">Flap switch</string>
+
+    <!-- Import -->
+    <string name="models_import_title">Import model</string>
+    <string name="models_import_action">Import</string>
+    <string name="models_imported">%1$s was imported.</string>
+    <string name="models_import_idle_title">Choose a model file</string>
+    <string name="models_import_idle_message">Pick an .oax12 export, or a model file exported by the stock app (.json, .rcm).</string>
+    <string name="models_import_choose">Choose file…</string>
+    <string name="models_import_choose_another">Choose another file…</string>
+    <string name="models_import_inspecting">Checking the file…</string>
+    <string name="models_import_importing">Importing…</string>
+    <string name="models_import_invalid_title">This file cannot be imported</string>
+    <string name="models_import_name_exists">A model named \"%1$s\" already exists. Nothing is overwritten: choose another name for the import.</string>
+    <string name="models_import_format">File type</string>
+    <string name="models_import_format_archive">open-ax12 model (.oax12)</string>
+    <string name="models_import_format_stock">Stock app model file</string>
+    <string name="models_import_type_unknown">Not set</string>
+    <string name="models_import_contents">Contents</string>
+    <string name="models_import_with_picture">Model, extras and picture · %1$s</string>
+    <string name="models_import_without_picture">Model and extras · %1$s</string>
+    <string name="models_import_stock_hint">Stock model files contain the radio configuration only. open-ax12 settings (flight modes, telemetry pages, voice alerts) start empty.</string>
+    <string name="models_import_problem_not_readable">The file could not be opened or read.</string>
+    <string name="models_import_problem_not_a_model">This is neither an open-ax12 model archive nor a stock model file.</string>
+    <string name="models_import_problem_path">The archive contains unsafe file paths and was rejected.</string>
+    <string name="models_import_problem_too_large">The file is too large or contains too many entries.</string>
+    <string name="models_import_problem_missing_model">The archive does not contain a model file.</string>
+    <string name="models_import_problem_corrupt_extras">The settings inside the archive are damaged.</string>
+    <string name="models_import_problem_schema">The file was made by a newer version of open-ax12. Update the app to import it.</string>
+
+    <!-- Crop -->
+    <string name="models_crop_title">Crop picture</string>
+    <string name="models_crop_save">Save</string>
+    <string name="models_crop_loading">Loading the image…</string>
+    <string name="models_crop_failed_title">The image cannot be loaded</string>
+    <string name="models_crop_failed_message">The file could not be read or is not a picture. Choose another image.</string>
+    <string name="models_crop_hint">Drag the picture to move it, pinch or use the slider to zoom. The frame shows exactly what the model card will show.</string>
+    <string name="models_crop_zoom_in">Zoom in</string>
+    <string name="models_crop_zoom_out">Zoom out</string>
+    <string name="models_crop_reset">Reset</string>
+
+    <!-- Errors -->
+    <string name="models_err_name_invalid">This name cannot be used.</string>
+    <string name="models_err_name_exists">A model with this name already exists.</string>
+    <string name="models_err_not_found">The model does not exist any more.</string>
+    <string name="models_err_is_current">The model of the radio cannot be deleted. Select another model first.</string>
+    <string name="models_err_radio">The radio did not accept the change.</string>
+    <string name="models_err_radio_not_ready">The radio is not connected.</string>
+    <string name="models_err_device_timeout">The radio did not answer in time.</string>
+    <string name="models_err_storage_permission">Storage access is missing.</string>
+    <string name="models_err_io">A file could not be read or written.</string>
+    <string name="models_err_invalid_file">This file is not valid.</string>
+    <string name="models_err_schema_too_new">The file was made by a newer version of the app.</string>
+    <string name="models_err_too_large">The file is too large.</string>
+    <string name="models_err_busy">Another operation is still running. Try again in a moment.</string>
+    <string name="models_err_plan">The model could not be set up completely. Nothing was changed.</string>
+    <string name="models_err_unsaved">There are unsaved changes. Save or discard them first.</string>
+    <string name="models_err_write_pending">The model is loaded but the radio did not confirm it. Open Model setup and press Save to write it again.</string>
+    <string name="models_err_no_picker">No file picker is available on this device.</string>
+    <string name="models_err_no_share_target">No app can receive the model file.</string>
+</resources>

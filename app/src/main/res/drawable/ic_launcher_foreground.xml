@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A stick pad with the stick deflected up-right. Artwork stays inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M40,32h28a8,8 0 0 1 8,8v28a8,8 0 0 1 -8,8h-28a8,8 0 0 1 -8,-8v-28a8,8 0 0 1 8,-8z"
+        android:strokeWidth="3"
+        android:strokeColor="#DDF2F6" />
+    <path
+        android:pathData="M54,40v28M40,54h28"
+        android:strokeWidth="1.5"
+        android:strokeColor="#5F7D92"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M54,54L62,46"
+        android:strokeWidth="2.5"
+        android:strokeColor="#1FB8A6"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#1FB8A6"
+        android:pathData="M62,46m-5,0a5,5 0 1 0 10,0a5,5 0 1 0 -10,0" />
+</vector>

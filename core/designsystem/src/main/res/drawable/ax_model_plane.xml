@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default picture of a powered plane (top view), 4:3. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="400dp"
+    android:height="300dp"
+    android:viewportWidth="400"
+    android:viewportHeight="300">
+    <path
+        android:fillColor="#1FB8A6"
+        android:pathData="M152,30 h96 a5,5 0 0 1 0,10 h-96 a5,5 0 0 1 0,-10 z" />
+    <path
+        android:fillColor="#2F7FB5"
+        android:pathData="M200,92 L336,99 C348,100 354,108 354,118 L354,134 C354,144 348,151 336,152 L200,157 L64,152 C52,151 46,144 46,134 L46,118 C46,108 52,100 64,99 Z" />
+    <path
+        android:fillColor="#2F7FB5"
+        android:pathData="M200,226 L258,230 C266,231 270,236 270,242 L270,247 C270,253 266,257 258,257 L200,260 L142,257 C134,257 130,253 130,247 L130,242 C130,236 134,231 142,230 Z" />
+    <path
+        android:fillColor="#1D5F8E"
+        android:pathData="M200,38 C213,38 219,58 219,86 L212,232 C210,247 206,259 200,268 C194,259 190,247 188,232 L181,86 C181,58 187,38 200,38 Z" />
+    <path
+        android:fillColor="#BFE6F2"
+        android:pathData="M200,70 C207,70 210,82 210,96 C210,112 207,124 200,124 C193,124 190,112 190,96 C190,82 193,70 200,70 Z" />
+</vector>

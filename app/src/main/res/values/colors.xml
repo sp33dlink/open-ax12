@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only what the window needs before Compose draws its first frame. -->
+    <color name="window_background">#DDF2F6</color>
+    <color name="ic_launcher_background">#14283A</color>
+</resources>

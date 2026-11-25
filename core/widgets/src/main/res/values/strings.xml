@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Markers and states drawn inside widgets -->
+    <string name="widget_lost">LOST</string>
+    <string name="widget_switch_up">UP</string>
+    <string name="widget_switch_mid">MID</string>
+    <string name="widget_switch_down">DOWN</string>
+    <string name="widget_switch_on">ON</string>
+    <string name="widget_switch_off">OFF</string>
+    <string name="widget_timer_running">Running</string>
+    <string name="widget_timer_stopped">Stopped</string>
+
+    <!-- Default titles -->
+    <string name="widget_title_link">Link</string>
+    <string name="widget_title_battery">Battery</string>
+    <string name="widget_title_vario">Vario</string>
+    <string name="widget_title_horizon">Horizon</string>
+    <string name="widget_title_gps">GPS</string>
+    <string name="widget_title_flight_mode">Flight mode</string>
+    <string name="widget_title_timer">Timer %1$d</string>
+    <string name="widget_title_counter">Counter %1$d</string>
+    <string name="widget_title_logical_switch">L%1$d</string>
+
+    <!-- Formats -->
+    <string name="widget_flight_mode_default">FM%1$d</string>
+    <string name="widget_gps_satellites">%1$d sat</string>
+    <string name="widget_gps_bearing">%1$s° %2$s</string>
+    <string name="widget_battery_cells">%1$dS · %2$s V</string>
+    <string name="widget_battery_percent">%1$d %%</string>
+    <string name="widget_horizon_pitch">P %1$s°</string>
+    <string name="widget_horizon_roll">R %1$s°</string>
+    <string name="widget_latitude_north" translatable="false">N</string>
+    <string name="widget_latitude_south" translatable="false">S</string>
+    <string name="widget_longitude_east" translatable="false">E</string>
+    <string name="widget_longitude_west" translatable="false">W</string>
+    <string-array name="widget_compass_points">
+        <item>N</item>
+        <item>NE</item>
+        <item>E</item>
+        <item>SE</item>
+        <item>S</item>
+        <item>SW</item>
+        <item>W</item>
+        <item>NW</item>
+    </string-array>
+
+    <!-- Pinned grid -->
+    <string name="widget_pinned_empty">No pinned widgets</string>
+    <string name="widget_pinned_empty_hint">Pin widgets on the Telemetry screen to see them here.</string>
+
+    <!-- Catalog: type names -->
+    <string name="widget_type_value">Value</string>
+    <string name="widget_type_value_min_max">Value with min / max</string>
+    <string name="widget_type_bar">Bar</string>
+    <string name="widget_type_arc_gauge">Arc gauge</string>
+    <string name="widget_type_graph">Graph</string>
+    <string name="widget_type_battery">Battery</string>
+    <string name="widget_type_link_quality">Link quality</string>
+    <string name="widget_type_timer">Timer</string>
+    <string name="widget_type_vario">Vario</string>
+    <string name="widget_type_horizon">Artificial horizon</string>
+    <string name="widget_type_gps">GPS</string>
+    <string name="widget_type_switch_state">Switch state</string>
+    <string name="widget_type_flight_mode">Flight mode</string>
+    <string name="widget_type_text">Text</string>
+
+    <!-- Catalog: type descriptions -->
+    <string name="widget_desc_value">A sensor value with its name and unit.</string>
+    <string name="widget_desc_value_min_max">A sensor value plus the minimum and maximum since the last reset.</string>
+    <string name="widget_desc_bar">A horizontal bar between a minimum and a maximum.</string>
+    <string name="widget_desc_arc_gauge">A round gauge between a minimum and a maximum.</string>
+    <string name="widget_desc_graph">The recent history of a sensor as a line.</string>
+    <string name="widget_desc_battery">Flight battery: voltage, cell count and voltage per cell, optionally current and used capacity.</string>
+    <string name="widget_desc_link_quality">Link quality with signal bars and signal strength.</string>
+    <string name="widget_desc_timer">One of the three timers or counters of the radio.</string>
+    <string name="widget_desc_vario">Climb and sink rate as a vertical bar.</string>
+    <string name="widget_desc_horizon">Artificial horizon from the pitch and roll sensors.</string>
+    <string name="widget_desc_gps">Position, distance and bearing to home, satellites. Tap to open the position in a maps app.</string>
+    <string name="widget_desc_switch_state">The position of a switch or the state of a logical switch.</string>
+    <string name="widget_desc_flight_mode">The active flight mode of the model, or the mode reported by the flight controller.</string>
+    <string name="widget_desc_text">A text label. It may contain values such as {RxBt} or {T1}.</string>
+
+    <!-- Catalog: sensor bindings -->
+    <string name="widget_slot_sensor">Sensor</string>
+    <string name="widget_slot_voltage">Voltage</string>
+    <string name="widget_slot_current">Current (optional)</string>
+    <string name="widget_slot_capacity">Used capacity (optional)</string>
+    <string name="widget_slot_link_quality">Link quality</string>
+    <string name="widget_slot_signal">Signal strength (optional)</string>
+    <string name="widget_slot_vertical_speed">Vertical speed</string>
+    <string name="widget_slot_pitch">Pitch</string>
+    <string name="widget_slot_roll">Roll</string>
+    <string name="widget_slot_latitude">Latitude</string>
+    <string name="widget_slot_longitude">Longitude</string>
+    <string name="widget_slot_switch">Switch (or use the logical switch option)</string>
+    <string name="widget_slot_flight_mode">Flight controller mode (optional)</string>
+
+    <!-- Catalog: options -->
+    <string name="widget_option_min">Scale minimum</string>
+    <string name="widget_option_max">Scale maximum</string>
+    <string name="widget_option_warn_below">Warn below</string>
+    <string name="widget_option_warn_above">Warn above</string>
+    <string name="widget_option_cells">Cells (0 = detect)</string>
+    <string name="widget_option_timer">Timer / counter number</string>
+    <string name="widget_option_counter">Show a counter</string>
+    <string name="widget_option_text">Text</string>
+    <string name="widget_option_history">History (seconds)</string>
+    <string name="widget_option_color">Accent colour</string>
+    <string name="widget_option_logical_switch">Logical switch number</string>
+    <string name="widget_option_show_title">Show title</string>
+</resources>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default picture of a flying wing (top view), 4:3. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="400dp"
+    android:height="300dp"
+    android:viewportWidth="400"
+    android:viewportHeight="300">
+    <path
+        android:fillColor="#2F7FB5"
+        android:pathData="M200,46 C207,46 212,50 216,56 L374,230 C381,239 374,251 362,249 L200,218 L38,249 C26,251 19,239 26,230 L184,56 C188,50 193,46 200,46 Z" />
+    <path
+        android:fillColor="#1FB8A6"
+        android:pathData="M352,206 L374,230 C381,239 374,251 362,249 L330,242.900 Z M48,206 L26,230 C19,239 26,251 38,249 L70,242.900 Z" />
+    <path
+        android:fillColor="#1D5F8E"
+        android:pathData="M200,62 C211,62 215,86 215,116 L211,204 C209,218 205,228 200,234 C195,228 191,218 189,204 L185,116 C185,86 189,62 200,62 Z" />
+    <path
+        android:fillColor="#BFE6F2"
+        android:pathData="M200,82 C205.500,82 207.500,94 207.500,106 C207.500,118 205.500,126 200,126 C194.500,126 192.500,118 192.500,106 C192.500,94 194.500,82 200,82 Z" />
+    <path
+        android:fillColor="#1FB8A6"
+        android:pathData="M168,238 h64 a4,4 0 0 1 0,8 h-64 a4,4 0 0 1 0,-8 z" />
+</vector>

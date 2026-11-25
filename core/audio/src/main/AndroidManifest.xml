@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Haptic patterns (AudioEngine.haptic). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Package visibility (API 30+): finding the installed text-to-speech engines. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
+</manifest>

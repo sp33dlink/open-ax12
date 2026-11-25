@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Messages of TtsStatus.Error, shown in the system settings. -->
+    <string name="audio_tts_error_init">The speech engine %1$s could not be started.</string>
+    <string name="audio_tts_error_timeout">The speech engine %1$s did not answer.</string>
+    <string name="audio_tts_error_unexpected">Text-to-speech failed: %1$s</string>
+</resources>

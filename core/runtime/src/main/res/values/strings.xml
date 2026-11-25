@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Built-in voice announcements of the runtime engine (spoken by text-to-speech). -->
+    <string name="runtime_spoken_telemetry_lost">Telemetry lost</string>
+    <string name="runtime_spoken_telemetry_recovered">Telemetry recovered</string>
+    <string name="runtime_spoken_low_tx_voltage">Transmitter battery low</string>
+    <string name="runtime_spoken_timer_expired">Timer %1$d expired</string>
+    <string name="runtime_spoken_switch_up">up</string>
+    <string name="runtime_spoken_switch_middle">middle</string>
+    <string name="runtime_spoken_switch_down">down</string>
+</resources>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Locations OpenAx12FileProvider may hand out. Keep in sync with StorageLocator. -->
+<paths>
+    <!-- Exported models and backups prepared for the share sheet. -->
+    <cache-path
+        name="share"
+        path="share/" />
+    <!-- Library in the app's external files directory (API 30+, or before the storage permission). -->
+    <external-files-path
+        name="library"
+        path="OpenAX12/" />
+    <!-- Public library on the radio (API 28): /sdcard/OpenAX12. -->
+    <external-path
+        name="public_library"
+        path="OpenAX12/" />
+    <!-- Last-resort library in the internal files directory (no external storage mounted). -->
+    <files-path
+        name="internal_library"
+        path="OpenAX12/" />
+</paths>

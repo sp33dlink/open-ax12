@@ -1,0 +1,3 @@
+Binaries + headers: https://github.com/flyshark2024/rmAxSdk commit 0f2b2862e11aaac847858a4a8a78fde103f77bb7 (2026-11-22, adds licenses/LICENSE)
+Manuals + demo sources: https://github.com/Radiomaster-RC/RadiomasterAX_SDK commit 7aa7facc0f3680a286a01cb7335f310211d7b9ef (2026-10-12)
+The binaries are identical in both repositories. Fetched by scripts/fetch-sdk.sh, verified by sdk/SDK_FETCH.sha256.
