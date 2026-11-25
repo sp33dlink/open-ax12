@@ -204,6 +204,7 @@ value class SourceId(val index: Int) : Comparable<SourceId> {
         val SF = SourceId(Sources.SF)
         val SG = SourceId(Sources.SG)
         val SH = SourceId(Sources.SH)
+        val SP = SourceId(Sources.SP)
 
         /** All 42 sources in SDK order. */
         val all: List<SourceId> = Sources.ALL.map(::SourceId)
@@ -243,5 +244,35 @@ enum class SwitchPosition(val logic: Int) {
             logic > 50 -> DOWN
             else -> MID
         }
+    }
+}
+
+/**
+ * The SP input of the AX12: a bar of six buttons of which exactly one is active at all times (the
+ * stock home screen shows it as the pills "1".."6"). The firmware reports it as one source value
+ * ([Sources.SP]); assumption `sp1` in `docs/ASSUMPTIONS.md`: the buttons are evenly spaced like
+ * a 6-position switch, see [LEVELS]. This object is the only place that knows that mapping.
+ */
+object SpButtonBar {
+
+    /** Number of buttons. */
+    const val BUTTON_COUNT = 6
+
+    /** Logic value (percent) reported while button 1..6 is active; index = button - 1. */
+    private val LEVELS = intArrayOf(-100, -60, -20, 20, 60, 100)
+
+    /** The logic value reported while [button] (1..[BUTTON_COUNT]) is active; out-of-range buttons are clamped. */
+    fun logicOf(button: Int): Int = LEVELS[button.coerceIn(1, BUTTON_COUNT) - 1]
+
+    /**
+     * The active button (1..[BUTTON_COUNT]) for the SP logic value [logic] (percent, -100..+100): the
+     * button whose [LEVELS] entry is nearest; a value exactly between two buttons gives the lower one.
+     */
+    fun buttonFromLogic(logic: Int): Int {
+        var best = 0
+        for (i in 1 until BUTTON_COUNT) {
+            if (kotlin.math.abs(logic - LEVELS[i]) < kotlin.math.abs(logic - LEVELS[best])) best = i
+        }
+        return best + 1
     }
 }

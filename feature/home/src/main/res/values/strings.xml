@@ -17,10 +17,5 @@
     <string name="home_cd_channel_pager">Channels %1$d to %2$d. Tap to show the other channels.</string>
 
     <!-- Inputs panel -->
-    <string name="home_cd_input_pages">Input pages</string>
-    <string name="home_flight_mode">Flight mode</string>
-    <string name="home_flight_mode_none">Flight modes not used</string>
-    <string name="home_logic_switches">Logical switches</string>
-    <string name="home_logic_switches_none">No logical switches</string>
-    <string name="home_logic_switches_more">+%1$d more</string>
+    <string name="home_cd_sp_button_active">SP button %1$d active</string>
 </resources>

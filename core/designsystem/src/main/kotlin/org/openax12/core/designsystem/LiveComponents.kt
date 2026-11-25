@@ -2,7 +2,6 @@ package org.openax12.core.designsystem
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -11,7 +10,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,10 +34,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
@@ -400,69 +395,6 @@ fun TimerRow(
             )
         } else {
             Spacer(Modifier.width(12.dp))
-        }
-    }
-}
-
-/**
- * Page selector `1 … n` of the home screen: small pills, the selected one filled with the accent
- * colour. Each page keeps a 44 dp high touch target.
- *
- * @param pageCount number of pages
- * @param selectedPage 0-based selected page
- * @param onSelect called with the 0-based page
- * @param labels optional custom labels (default "1".."n")
- */
-@Composable
-fun PageSelector(
-    pageCount: Int,
-    selectedPage: Int,
-    onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-    labels: List<String>? = null,
-) {
-    val colors = AxTheme.colors
-    Row(
-        modifier = modifier.height(AxDimens.MinTouch),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        for (page in 0 until pageCount) {
-            val selected = page == selectedPage
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        role = Role.Tab,
-                        onClick = { onSelect(page) },
-                    )
-                    .semantics { this.selected = selected },
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(width = 28.dp, height = 20.dp)
-                        .then(
-                            if (selected) {
-                                Modifier.axRaised(cornerRadius = 10.dp, elevation = 2.dp, color = colors.accent)
-                            } else {
-                                Modifier.axRaised(cornerRadius = 10.dp, elevation = 2.dp, color = colors.surfaceRaised)
-                            },
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = labels?.getOrNull(page) ?: (page + 1).toString(),
-                        style = AxTheme.typography.label,
-                        color = if (selected) colors.onAccent else colors.text,
-                        maxLines = 1,
-                        overflow = TextOverflow.Clip,
-                    )
-                }
-            }
         }
     }
 }

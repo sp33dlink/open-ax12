@@ -14,14 +14,9 @@ import org.openax12.core.designsystem.AxDestination
 import org.openax12.core.designsystem.AxScreen
 import org.openax12.core.designsystem.AxStatusBar
 import org.openax12.core.designsystem.AxThemeMode
-import org.openax12.core.model.FlightModeConfig
-import org.openax12.core.model.FlightModesConfig
 import org.openax12.core.model.HomeCenterCard
 import org.openax12.core.model.HomePreferences
 import org.openax12.core.model.LiveSnapshot
-import org.openax12.core.model.LogicalFunction
-import org.openax12.core.model.LogicalSwitch
-import org.openax12.core.model.LogicalSwitchStates
 import org.openax12.core.model.ModelExtras
 import org.openax12.core.model.ModelType
 import org.openax12.core.model.OutputChannelConfig
@@ -30,6 +25,7 @@ import org.openax12.core.model.SensorId
 import org.openax12.core.model.SourceId
 import org.openax12.core.model.SourceInfo
 import org.openax12.core.model.Sources
+import org.openax12.core.model.SpButtonBar
 import org.openax12.core.model.StickMode
 import org.openax12.core.model.SystemConfig
 import org.openax12.core.model.TelemetryLayout
@@ -44,7 +40,6 @@ import org.openax12.core.model.Sensors
 import org.openax12.core.model.SwitchCondition
 import org.openax12.core.model.CompareOp
 import org.openax12.core.model.WorkingConfig
-import org.openax12.core.runtime.ActiveFlightMode
 import org.openax12.core.widgets.FakeWidgetDataSource
 
 // Screenshot functions of the home screen (CLAUDE.md > Visual checks). The screen is rendered from
@@ -62,31 +57,18 @@ private val Pinned: List<WidgetConfig> = listOf(
 
 private fun extras(
     centerCard: HomeCenterCard = HomeCenterCard.PICTURE,
-    inputPage: Int = 0,
     channelPage: Int = 0,
     modelType: ModelType = ModelType.GLIDER,
-    flightModes: Boolean = false,
-    logicSwitches: Int = 0,
     pinned: List<WidgetConfig> = Pinned,
 ) = ModelExtras(
     modelType = modelType,
-    home = HomePreferences(centerCard = centerCard, inputPage = inputPage, channelPage = channelPage),
+    home = HomePreferences(centerCard = centerCard, channelPage = channelPage),
     telemetry = TelemetryLayout(pages = listOf(TelemetryPage(id = "p", widgets = pinned))),
-    flightModes = if (flightModes) {
-        FlightModesConfig(
-            enabled = true,
-            modeSwitch = SourceId.SB,
-            modes = listOf(FlightModeConfig("Cruise"), FlightModeConfig("Thermal"), FlightModeConfig("Speed")),
-        )
-    } else {
-        FlightModesConfig()
-    },
-    logicalSwitches = List(logicSwitches) { LogicalSwitch(index = it, function = LogicalFunction.A_GREATER_X) },
 )
 
-/** An AX12-like radio: SA-SH, S1, S2, P1, P2 and CNT1 enabled, CH01 / CH03 / CH05 / CH07 with mixes. */
-private fun config(stick: StickMode = StickMode.MODE_2, thirdTimer: Boolean = false): WorkingConfig {
-    val enabled = (Sources.SA..Sources.SH).toSet() + setOf(Sources.S1, Sources.S2, Sources.P1, Sources.P2, Sources.CNT1)
+/** An AX12-like radio: SA-SF, S1, S2 and SP enabled (SP optional), CH01 / CH03 / CH05 / CH07 with mixes. */
+private fun config(stick: StickMode = StickMode.MODE_2, thirdTimer: Boolean = false, sp: Boolean = true): WorkingConfig {
+    val enabled = (Sources.SA..Sources.SF).toSet() + setOf(Sources.S1, Sources.S2) + (if (sp) setOf(Sources.SP) else emptySet())
     return WorkingConfig(
         sources = Sources.ALL.map { SourceInfo(index = it, enabled = it in enabled) },
         channels = List(16) { OutputChannelConfig(channel = it, mixCount = if (it % 2 == 0 && it < 10) 2 else 0) },
@@ -114,6 +96,7 @@ private fun frame(
         TimerState(index = 2, count = 95),
     ),
     mode2: Boolean = true,
+    spButton: Int = 1,
 ): LiveSnapshot {
     val logic = mutableMapOf(
         SourceId.RUD to left.first,
@@ -126,13 +109,9 @@ private fun frame(
         SourceId.SD to 0,
         SourceId.SE to 100,
         SourceId.SF to 100,
-        SourceId.SG to -100,
-        SourceId.SH to 0,
+        SourceId.SP to SpButtonBar.logicOf(spButton),
         SourceId.slider(1) to -100,
         SourceId.slider(2) to 84,
-        SourceId.pot(1) to 35,
-        SourceId.pot(2) to -60,
-        SourceId.counter(1) to 12,
     )
     return LiveSnapshot.of(
         logic = logic,
@@ -148,8 +127,6 @@ private fun Frame(
     mode: AxThemeMode,
     state: HomeUiState,
     live: LiveSnapshot,
-    flightMode: ActiveFlightMode = ActiveFlightMode(),
-    logic: LogicalSwitchStates = LogicalSwitchStates.NONE,
 ) {
     Ax12Theme(mode) {
         // FixedCanvas paints this gradient in the app; the screenshot frame has to do it itself.
@@ -171,8 +148,6 @@ private fun Frame(
             HomeScreen(
                 state = state,
                 live = { live },
-                flightMode = { flightMode },
-                logicalSwitches = { logic },
                 onAction = {},
                 modifier = Modifier,
                 widgetDataSource = FakeWidgetDataSource.demo(),
@@ -181,54 +156,70 @@ private fun Frame(
     }
 }
 
-/** Default view: model picture, two timers (T1 running), stock first page (SA-SF above S1 / S2), throttle stick at the bottom. */
+/** Default view: model picture, two timers (T1 running), stock layout (SA-SF above S1 / S2, SP button 1 active), throttle stick at the bottom. */
 @PreviewTest
 @Ax12Preview
 @Composable
-fun HomePictureScreenshot() = Frame(AxThemeMode.LIGHT, state(), frame())
+fun HomePictureScreenshot() = Frame(AxThemeMode.LIGHT, state(), frame(spButton = 1))
 
-/** Centre card flipped to the pinned telemetry widgets. */
+/** Centre card flipped to the pinned telemetry widgets; SP button 4 active. */
 @PreviewTest
 @Ax12Preview
 @Composable
-fun HomeWidgetsScreenshot() = Frame(AxThemeMode.LIGHT, state(extras(centerCard = HomeCenterCard.WIDGETS)), frame())
+fun HomeWidgetsScreenshot() = Frame(AxThemeMode.LIGHT, state(extras(centerCard = HomeCenterCard.WIDGETS)), frame(spButton = 4))
 
-/** Channel list page 2 (CH09-CH16), input page 2 (SG, SH and the pots) and a third timer. */
+/** Channel list page 2 (CH09-CH16), a third timer and SP button 6 active. */
 @PreviewTest
 @Ax12Preview
 @Composable
-fun HomeSecondPagesScreenshot() = Frame(
+fun HomeSecondPageScreenshot() = Frame(
     AxThemeMode.LIGHT,
-    state(extras(inputPage = 1, channelPage = 1), config(thirdTimer = true)),
-    frame(left = 0 to 0, right = 0 to 0),
+    state(extras(channelPage = 1), config(thirdTimer = true)),
+    frame(left = 0 to 0, right = 0 to 0, spButton = 6),
 )
 
-/** Flight-mode page with three modes and logical switches, T3 configured, mode 1 sticks at full deflection in a corner. */
+/** Mode 1 sticks at full deflection in a corner, T3 configured, SP button 3 active. */
 @PreviewTest
 @Ax12Preview
 @Composable
-fun HomeModesPageScreenshot() = Frame(
+fun HomeMode1Screenshot() = Frame(
     AxThemeMode.LIGHT,
-    state(extras(inputPage = 3, flightModes = true, logicSwitches = 14, modelType = ModelType.PLANE), config(StickMode.MODE_1, thirdTimer = true)),
-    frame(left = -100 to 100, right = 100 to -100, mode2 = false),
-    flightMode = ActiveFlightMode(1, "Thermal"),
-    logic = LogicalSwitchStates.NONE.with(0, true).with(3, true).with(9, true),
+    state(extras(modelType = ModelType.PLANE), config(StickMode.MODE_1, thirdTimer = true)),
+    frame(left = -100 to 100, right = 100 to -100, mode2 = false, spButton = 3),
 )
 
-/** Dark scheme. */
+/** Radio without an SP input: the button row is hidden. */
 @PreviewTest
 @Ax12Preview
 @Composable
-fun HomeDarkScreenshot() = Frame(AxThemeMode.DARK, state(extras(modelType = ModelType.MULTIROTOR)), frame(left = 0 to 0, right = 0 to 0))
+fun HomeNoSpScreenshot() = Frame(AxThemeMode.LIGHT, state(config = config(sp = false)), frame())
 
-/** High-contrast (sun) scheme with the widgets face. */
+/** Dark scheme, SP button 1. */
+@PreviewTest
+@Ax12Preview
+@Composable
+fun HomeDarkScreenshot() = Frame(AxThemeMode.DARK, state(extras(modelType = ModelType.MULTIROTOR)), frame(left = 0 to 0, right = 0 to 0, spButton = 1))
+
+/** Dark scheme, SP button 4. */
+@PreviewTest
+@Ax12Preview
+@Composable
+fun HomeDarkSp4Screenshot() = Frame(AxThemeMode.DARK, state(), frame(spButton = 4))
+
+/** Dark scheme, SP button 6 (last button). */
+@PreviewTest
+@Ax12Preview
+@Composable
+fun HomeDarkSp6Screenshot() = Frame(AxThemeMode.DARK, state(extras(centerCard = HomeCenterCard.WIDGETS)), frame(spButton = 6))
+
+/** High-contrast (sun) scheme with the widgets face, SP button 2. */
 @PreviewTest
 @Ax12Preview
 @Composable
 fun HomeHighContrastScreenshot() = Frame(
     AxThemeMode.HIGH_CONTRAST,
     state(extras(centerCard = HomeCenterCard.WIDGETS)),
-    frame(left = 100 to 0, right = 100 to 100),
+    frame(left = 100 to 0, right = 100 to 100, spButton = 2),
 )
 
 /** Radio not ready yet: empty configuration and no live data; a model without a name and without pinned widgets. */

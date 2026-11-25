@@ -67,7 +67,7 @@ class ModelSerializationTest {
         sensorOverrides = mapOf(Sensors.BATTERY_VOLTAGE.key to SensorOverride(name = "Flight pack", precision = 2)),
         alarms = listOf(SensorAlarm("a1", sensor = Sensors.BATTERY_VOLTAGE, threshold = 6.8, hysteresis = 0.2, repeatSec = 10, outputs = AlarmOutputs(voiceText = "Battery low", popup = true))),
         timerVoice = listOf(TimerVoiceOptions(0, minuteCall = true, countdown = CountdownStyle.VOICE)),
-        home = HomePreferences(HomeCenterCard.WIDGETS, inputPage = 2),
+        home = HomePreferences(HomeCenterCard.WIDGETS, channelPage = 1),
         managed = ManagedItems(
             mixes = listOf(ManagedMix(0, Sources.SA, ManagedItems.GENERATOR_FLIGHT_MODES)),
             curves = listOf(ManagedCurve(17, ManagedItems.GENERATOR_FLIGHT_MODES)),
@@ -124,7 +124,7 @@ class ModelSerializationTest {
         assertEquals("kept", extras.notes)
         assertTrue(extras.vario.alwaysOn)
         assertEquals(HomeCenterCard.PICTURE, extras.home.centerCard)
-        assertEquals(3, extras.home.inputPage)
+        assertEquals(0, extras.home.channelPage)
         assertEquals(SpecialAction.Vario, extras.specialFunction(2)?.action)
         assertEquals(Trigger.Always, extras.specialFunction(2)?.trigger)
     }

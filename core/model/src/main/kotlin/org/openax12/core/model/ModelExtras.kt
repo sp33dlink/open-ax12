@@ -23,13 +23,11 @@ enum class HomeCenterCard {
  * Per-model home screen preferences.
  *
  * @property centerCard remembered state of the flip card (picture or pinned widgets)
- * @property inputPage last selected page of the input / switch area (0-based)
  * @property channelPage last selected page of the channel list (0 = CH01–08, 1 = CH09–16)
  */
 @Serializable
 data class HomePreferences(
     val centerCard: HomeCenterCard = HomeCenterCard.PICTURE,
-    val inputPage: Int = 0,
     val channelPage: Int = 0,
 )
 

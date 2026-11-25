@@ -17,12 +17,12 @@ Stock look, cleaned up:
 
 ## 2. Home screen (`:feature:home`)
 
-Layout as in `stock-home.png`: left column (left stick pad, channel list), centre card (model name, picture, timers), right column (right stick pad, switches, knobs, page selector).
+Layout as in `stock-home.png`: left column (left stick pad, channel list), centre card (model name, picture, timers), right column (right stick pad, switches, knobs, SP button row).
 
 - **Stick pads (modernised — explicit owner request):** rounded square, subtle grid, position dot with a short motion trail. The four borders are four separate segments: a border **lights up (accent glow) while the stick is at its maximum on that side** (|value| ≥ 98 %), two borders in a corner. The **centre marker lights up while the stick is at dead centre** (both axes within ±2 %). Trim position shown as a slim slider on the outer vertical edge and under the pad. Which sources map to which pad follows the stick mode (mode 2: left = Thr vertical / Rud horizontal, right = Ele / Ail; mode 1: left = Ele / Rud, right = Thr / Ail).
 - **Channel list:** CH01–CH08 with a centre-zero bar and %; pager to CH09–CH16. Channels with mixes are emphasised.
 - **Centre card:** model name; model picture (custom picture or a default per model type). **Tapping the picture flips the card to the pinned telemetry widgets** (grid from `:core:widgets`); tapping again (or the small toggle) flips back. The choice is remembered per model. Timers T1–T3 with start/stop/reset by tap/long-press and a gear to the timer settings.
-- **Right lower area:** switches as 3-position pills (orange up / neutral mid / teal down), knobs/sliders as arc gauges, page selector `1…6` that pages through all enabled inputs (SA–SP, P1–P8, S1–S8, counters) and a flight-mode/logical-switch page.
+- **Right lower area:** switches as 3-position pills (orange up / neutral mid / teal down), knobs/sliders as arc gauges, and the SP input as a display-only row of six pills `1…6` (SP is a button bar with exactly one button active at all times; the row is hidden if the radio reports no SP). One page, no paging: other inputs are in Model setup → Input check, the flight mode name is in the status bar.
 - Active flight mode name shown in the status bar title area. Tapping the model name opens Models.
 - When the simulator backend is active a small "SIM" badge is shown.
 

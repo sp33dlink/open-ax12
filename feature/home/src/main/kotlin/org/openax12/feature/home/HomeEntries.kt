@@ -14,12 +14,10 @@ import androidx.navigation3.runtime.NavKey
 import org.openax12.core.designsystem.AxToastKind
 import org.openax12.core.designsystem.LocalAxToastState
 import org.openax12.core.model.LiveSnapshot
-import org.openax12.core.model.LogicalSwitchStates
 import org.openax12.core.navigation.Home
 import org.openax12.core.navigation.LocalNavigator
 import org.openax12.core.navigation.Models
 import org.openax12.core.navigation.SetupTabIds
-import org.openax12.core.runtime.ActiveFlightMode
 import org.openax12.core.runtime.LocalAppGraph
 
 /** Installs the home screen ([Home]) into the app shell's entry provider. */
@@ -41,11 +39,7 @@ internal fun HomeRoute() {
     // Hold the State objects, never their values: reading `.value` here would recompose the whole
     // screen on every frame. The lambdas below are read in draw phases.
     val liveState: State<LiveSnapshot> = graph.radio.live.collectAsStateWithLifecycle()
-    val flightModeState: State<ActiveFlightMode> = graph.runtime.flightMode.collectAsStateWithLifecycle()
-    val logicState: State<LogicalSwitchStates> = graph.runtime.logicalSwitches.collectAsStateWithLifecycle()
     val live = remember(liveState) { { liveState.value } }
-    val flightMode = remember(flightModeState) { { flightModeState.value } }
-    val logicalSwitches = remember(logicState) { { logicState.value } }
 
     val context = LocalContext.current
     val view = LocalView.current
@@ -54,8 +48,6 @@ internal fun HomeRoute() {
     HomeScreen(
         state = state,
         live = live,
-        flightMode = flightMode,
-        logicalSwitches = logicalSwitches,
         onAction = { action ->
             when (action) {
                 HomeAction.OpenModels -> navigator.navigate(Models)
