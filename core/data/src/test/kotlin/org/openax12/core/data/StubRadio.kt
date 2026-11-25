@@ -81,20 +81,22 @@ class StubRadio(private val sdkDir: File, var importNeedsExistingTarget: Boolean
     /**
      * Creates a model file directly in the SDK directory. Like a real SDK model file it carries an
      * `RC_MODEL_CFG` section with the radio-wide fields ([rf], [alarm], [stick]) and the per-model
-     * [modelMatchId].
+     * [modelMatchId] when at least one of them is given; without any the file has no such section
+     * (the plain `config` models of the other data-layer tests).
      */
     fun addModel(
         name: String,
         config: String = "config of $name",
         modelMatch: Long = 0,
-        rf: Int = 0,
-        alarm: Int = 33,
-        stick: Int = 1,
-        modelMatchId: Int = 0,
+        rf: Int? = null,
+        alarm: Int? = null,
+        stick: Int? = null,
+        modelMatchId: Int? = null,
     ): ModelInfo {
         val index = nextIndex++
         val file = File(sdkDir, "model_$index.json")
-        write(file, name, modelMatch, config, systemSection(rf, alarm, stick, modelMatchId))
+        val withSystem = rf != null || alarm != null || stick != null || modelMatchId != null
+        write(file, name, modelMatch, config, if (withSystem) systemSection(rf ?: 0, alarm ?: 33, stick ?: 1, modelMatchId ?: 0) else null)
         return ModelInfo(name = name, filePath = file.path, index = index, modelMatch = modelMatch)
     }
 
