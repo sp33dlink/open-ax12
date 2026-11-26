@@ -55,7 +55,13 @@ internal class CalibrationViewModel(
             radio.live.collect { frame ->
                 val status = frame.status
                 local.edit { s ->
-                    val extents = if (status.calibrationState != 0) s.extents.observe(frame) else s.extents
+                    // End points only count once the radio has taken the centre (phase 3); a new run starts fresh.
+                    val extents = when (CalibrationPhase.of(status.calibrationState)) {
+                        CalibrationPhase.MOVE_STICKS -> s.extents.observe(frame)
+                        CalibrationPhase.PREPARING, CalibrationPhase.CAPTURING_CENTRE ->
+                            if (s.extents == StickExtents()) s.extents else StickExtents()
+                        CalibrationPhase.IDLE -> s.extents
+                    }
                     if (extents === s.extents && s.calibrationState == status.calibrationState && s.linkUp == status.isLinkUp) {
                         s
                     } else {

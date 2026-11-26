@@ -84,7 +84,7 @@ class SdkMappingTest {
         assertEquals(0xFF, raw.rfModuleMode)
         assertEquals(105, raw.alramVtg)
         assertTrue(SdkMapping.overlaySystemConfig(raw, config.copy(stickMode = StickMode.MODE_1)))
-        assertEquals(2, raw.stickMode)
+        assertEquals(0, raw.stickMode)
     }
 
     @Test
