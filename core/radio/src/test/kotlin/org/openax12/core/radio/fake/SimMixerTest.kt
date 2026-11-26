@@ -90,9 +90,9 @@ class SimMixerTest {
     fun switchConditionGatesALine() {
         val gated = MixLine(channel = 0, source = SourceId.ELE, switch = SwitchCondition.at(SourceId.SA, SwitchPosition.DOWN))
         val cfg = config(line(Sources.AIL), gated)
-        assertEquals(30.0, out(cfg, logic(Sources.AIL to 30, Sources.ELE to 50, Sources.SA to -100)), eps)
+        assertEquals(30.0, out(cfg, logic(Sources.AIL to 30, Sources.ELE to 50, Sources.SA to 100)), eps)
         assertEquals(30.0, out(cfg, logic(Sources.AIL to 30, Sources.ELE to 50, Sources.SA to 0)), eps)
-        assertEquals(80.0, out(cfg, logic(Sources.AIL to 30, Sources.ELE to 50, Sources.SA to 100)), eps)
+        assertEquals(80.0, out(cfg, logic(Sources.AIL to 30, Sources.ELE to 50, Sources.SA to -100)), eps)
     }
 
     @Test
@@ -152,10 +152,10 @@ class SimMixerTest {
         val state = SimMixerState()
         fun step(aileron: Int, switch: Int) =
             SimMixer.compute(cfg, logic(Sources.AIL to aileron, Sources.SA to switch), state, 100)[0]
-        assertEquals(-100.0, step(-100, 100), eps)
-        assertEquals(-90.0, step(100, 100), eps)
-        assertEquals(0.0, step(100, -100), eps)
-        assertEquals(100.0, step(100, 100), eps)
+        assertEquals(-100.0, step(-100, -100), eps)
+        assertEquals(-90.0, step(100, -100), eps)
+        assertEquals(0.0, step(100, 100), eps)
+        assertEquals(100.0, step(100, -100), eps)
     }
 
     // ---- dual rate, channel curve, weight, limits, lock --------------------------------------
@@ -171,8 +171,8 @@ class SimMixerTest {
                 DualRateSlot(0, 2, switch = down, weight = 30),
             ),
         )
-        assertEquals(80.0, out(cfg, logic(Sources.AIL to 80, Sources.SB to -100)), eps)
-        assertEquals(56.0, out(cfg, logic(Sources.AIL to 80, Sources.SB to 100)), eps)
+        assertEquals(80.0, out(cfg, logic(Sources.AIL to 80, Sources.SB to 100)), eps)
+        assertEquals(56.0, out(cfg, logic(Sources.AIL to 80, Sources.SB to -100)), eps)
     }
 
     @Test
@@ -223,9 +223,9 @@ class SimMixerTest {
                 lockValue = -100,
             ),
         )
-        assertEquals(70.0, out(cfg, logic(Sources.THR to 50, Sources.SF to -100)), eps)
+        assertEquals(70.0, out(cfg, logic(Sources.THR to 50, Sources.SF to 100)), eps)
         // The lock value is not clamped by the limits.
-        assertEquals(-100.0, out(cfg, logic(Sources.THR to 50, Sources.SF to 100)), eps)
+        assertEquals(-100.0, out(cfg, logic(Sources.THR to 50, Sources.SF to -100)), eps)
     }
 
     @Test
@@ -246,7 +246,8 @@ class SimMixerTest {
         assertEquals(0.0, idle[1], eps)
         assertEquals(-100.0, idle[2], eps)
         assertEquals(0.0, idle[3], eps)
-        assertEquals(-100.0, idle[4], eps)
+        // CH5 follows SA, which rests up (+100).
+        assertEquals(100.0, idle[4], eps)
 
         val flying = rest.copyOf().also {
             it[Sources.AIL] = 50
@@ -257,8 +258,8 @@ class SimMixerTest {
         assertEquals(20.0, SimMixer.compute(plane, flying)[2], eps)
 
         // Low rates on SB down, throttle cut on SF down.
-        flying[Sources.SB] = 100
-        flying[Sources.SF] = 100
+        flying[Sources.SB] = SwitchPosition.DOWN.logic
+        flying[Sources.SF] = SwitchPosition.DOWN.logic
         assertEquals(38.75 * 0.7, SimMixer.compute(plane, flying)[0], eps)
         assertEquals(-100.0, SimMixer.compute(plane, flying)[2], eps)
     }

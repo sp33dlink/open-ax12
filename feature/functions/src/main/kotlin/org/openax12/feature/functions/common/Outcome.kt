@@ -49,5 +49,11 @@ internal fun sessionErrorText(error: SessionError): String = stringResource(
         SessionError.MODEL_NOT_FOUND -> R.string.fn_err_model
         SessionError.UNSAVED_CHANGES -> R.string.fn_err_unsaved
         SessionError.DEVICE_WRITE_PENDING -> R.string.fn_err_write_pending
+        SessionError.CONFIG_INCOMPLETE -> R.string.fn_err_config_incomplete
+        // Only `ConfigSession.updateSystemConfig` produces these; no function flow does.
+        SessionError.SYSTEM_CONFIG_UNAVAILABLE,
+        SessionError.SYSTEM_CONFIG_NOT_APPLIED,
+        SessionError.RF_OFF_NOT_CONFIRMED,
+        -> R.string.fn_err_plan_failed
     },
 )

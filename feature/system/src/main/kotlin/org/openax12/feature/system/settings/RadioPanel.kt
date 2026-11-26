@@ -1,6 +1,7 @@
 package org.openax12.feature.system.settings
 
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -35,6 +36,9 @@ internal fun RadioPanel(state: SettingsUiState, onEvent: (SettingsEvent) -> Unit
     val editable = state.canEditDevice
     PanelColumn {
         ConnectionNotice(state.connection)
+        if (state.systemUnavailable) {
+            NoticeBox(stringResource(R.string.radio_system_unavailable), kind = NoticeKind.Warning)
+        }
         if (state.radioReady && state.dirty) {
             NoticeBox(stringResource(R.string.radio_unsaved_notice), kind = NoticeKind.Warning)
         } else if (state.radioReady && !state.deviceInSync) {
@@ -42,22 +46,30 @@ internal fun RadioPanel(state: SettingsUiState, onEvent: (SettingsEvent) -> Unit
         }
 
         SettingsGroup(stringResource(R.string.group_transmitter)) {
-            val mode = system?.stickMode ?: StickMode.MODE_2
+            val mode = system?.stickMode
             AxSettingRow(
                 title = stringResource(R.string.radio_stick_mode),
-                description = stringResource(
-                    R.string.radio_stick_mode_desc,
-                    mode.leftVertical.defaultName,
-                    mode.leftHorizontal.defaultName,
-                    mode.rightVertical.defaultName,
-                    mode.rightHorizontal.defaultName,
-                ),
+                description = if (mode == null) {
+                    stringResource(R.string.radio_value_unavailable)
+                } else {
+                    stringResource(
+                        R.string.radio_stick_mode_desc,
+                        mode.leftVertical.defaultName,
+                        mode.leftHorizontal.defaultName,
+                        mode.rightVertical.defaultName,
+                        mode.rightHorizontal.defaultName,
+                    )
+                },
                 icon = AxIcons.Stick,
                 enabled = editable,
             ) {
                 AxSegmented(
                     options = listOf(stringResource(R.string.radio_mode_1), stringResource(R.string.radio_mode_2)),
-                    selectedIndex = if (mode == StickMode.MODE_1) 0 else 1,
+                    selectedIndex = when (mode) {
+                        null -> NOTHING_SELECTED
+                        StickMode.MODE_1 -> 0
+                        StickMode.MODE_2 -> 1
+                    },
                     onSelected = { onEvent(SettingsEvent.Radio(RadioAction.SetStickMode(if (it == 0) StickMode.MODE_1 else StickMode.MODE_2))) },
                     enabled = editable,
                     modifier = Modifier.width(200.dp),
@@ -70,19 +82,27 @@ internal fun RadioPanel(state: SettingsUiState, onEvent: (SettingsEvent) -> Unit
                 icon = AxIcons.Battery,
                 enabled = editable,
             ) {
-                NumberField(
-                    value = system?.alarmVoltageDeciVolt ?: 0,
-                    onValueChange = { onEvent(SettingsEvent.Radio(RadioAction.SetAlarmVoltage(it))) },
-                    min = 0,
-                    max = 150,
-                    step = 1,
-                    decimals = 1,
-                    unit = " V",
-                    title = stringResource(R.string.radio_alarm_voltage),
-                    enabled = editable,
-                    steppers = true,
-                    modifier = Modifier.width(180.dp),
-                )
+                if (system == null) {
+                    Text(
+                        text = stringResource(R.string.radio_value_unavailable),
+                        style = AxTheme.typography.value,
+                        color = AxTheme.colors.textMuted,
+                    )
+                } else {
+                    NumberField(
+                        value = system.alarmVoltageDeciVolt,
+                        onValueChange = { onEvent(SettingsEvent.Radio(RadioAction.SetAlarmVoltage(it))) },
+                        min = 0,
+                        max = 150,
+                        step = 1,
+                        decimals = 1,
+                        unit = " V",
+                        title = stringResource(R.string.radio_alarm_voltage),
+                        enabled = editable,
+                        steppers = true,
+                        modifier = Modifier.width(180.dp),
+                    )
+                }
             }
             AxDivider()
             AxSettingRow(
@@ -91,7 +111,8 @@ internal fun RadioPanel(state: SettingsUiState, onEvent: (SettingsEvent) -> Unit
                 icon = AxIcons.Antenna,
                 enabled = editable,
             ) {
-                val selected = when (system?.rfModuleMode ?: RfModuleMode.INTERNAL) {
+                val selected = when (system?.rfModuleMode) {
+                    null -> NOTHING_SELECTED
                     RfModuleMode.INTERNAL -> 0
                     RfModuleMode.EXTERNAL -> 1
                     RfModuleMode.OFF -> 2
@@ -174,6 +195,9 @@ internal fun RadioPanel(state: SettingsUiState, onEvent: (SettingsEvent) -> Unit
         }
     }
 }
+
+/** `AxSegmented` index meaning "no option selected" (the value is unavailable). */
+private const val NOTHING_SELECTED: Int = -1
 
 /** A list row that opens a sub-screen: icon, title, description and a chevron. */
 @Composable

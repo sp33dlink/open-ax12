@@ -190,6 +190,11 @@ interface Radio {
     /**
      * `taskSaveConfigToDevice()`: writes the working config to the device (the SDK also saves the
      * current model file) and suspends until `RC_MSGID_CFGTODEV_END` or [timeout].
+     *
+     * Never writes an empty or partial working config: if `ModelFileCheck.workingProblem` finds
+     * one (no output channels, or every channel limit 0) the result is [TaskResult.REFUSED] and
+     * nothing is sent. `taskSaveConfigToDevice` writes the whole configuration, so such a config
+     * would wipe the radio's mixes and channel setup.
      */
     suspend fun saveConfigToDevice(timeout: Duration = DEFAULT_TASK_TIMEOUT): TaskResult
 
@@ -358,14 +363,25 @@ interface Radio {
     // System configuration and device control
     // ------------------------------------------------------------------------------------------
 
-    /** `rcGetRcSysConfig()`. */
+    /**
+     * The system configuration of the radio: stick mode, RF module mode, alarm voltage, pre-flight
+     * presets and the fields the SDK carries along.
+     *
+     * Null when no trustworthy values exist. The SDK backend does **not** use `rcGetRcSysConfig()`
+     * (it returns an uninitialised struct on the AX12, assumption r5): it reads the `RC_MODEL_CFG`
+     * of the current model file and returns null unless the values are plausible
+     * (`SystemConfigValidity`). Callers treat null as "unavailable" and never substitute defaults.
+     */
     suspend fun getSystemConfig(): SystemConfig?
 
     /**
      * `rcSetRcSysConfig()`. Only alarm voltage, RF module mode, stick mode and the pre-flight
      * presets are really applied by the SDK. The implementation overlays [config] onto a fresh
-     * `rcGetRcSysConfig()`; `stickMode` and `rfModuleMode` are written only when they really
+     * [getSystemConfig]; `stickMode` and `rfModuleMode` are written only when they really
      * changed (an unknown device code such as RF mode `0xFF` survives, see "Read-modify-write").
+     * Returns false when the current values are not trustworthy or the result would not be
+     * plausible. The SDK setter damages curve 0; the SDK backend repairs it (assumption r6) and
+     * returns false, leaving the working config to be discarded, if it cannot.
      *
      * Callers must build [config] from a fresh [getSystemConfig] inside the same edit — never
      * from a cached `WorkingConfig.system` or from `SystemConfig()` defaults. The change is
@@ -434,6 +450,11 @@ interface Radio {
      * yet saved to the device — call [saveConfigToDevice] to make it the flying config) and makes
      * it the SDK's current model file.
      *
+     * `true` only means "the SDK accepted the file". A file without a `channelOut` section loads
+     * successfully into a working config without mixes and with all channel limits 0 (assumption
+     * r11): check the file with `ModelFileCheck.fileProblem` before and compare the working
+     * config afterwards (`ModelFileCheck.mismatch`).
+     *
      * From this call until a [saveConfigToDevice] completed, the device and the current model
      * file disagree and **any device read would overwrite [modelFile] with the device's old
      * configuration**. If that save does not complete, retry it or load the previous file again
@@ -447,7 +468,16 @@ interface Radio {
      */
     suspend fun exportModel(modelFile: String, destinationFile: String): Boolean
 
-    /** `rcImportModelCfg(importFile, modelFile)`: imports [importFile] into the model [targetModelFile]; `true` if the SDK returned 0. */
+    /**
+     * Imports the model file [importFile] into the existing model file [targetModelFile]: the
+     * target takes over everything of the source (configuration, **channels and mixes**) and keeps
+     * its own identity (index, name, image). `true` = the target was replaced; `false` = nothing
+     * was written (the target does not exist, or the source is not a complete model file).
+     *
+     * The SDK backend does not use `rcImportModelCfg` for this: it leaves the target with 16 empty
+     * channels and no mixes (assumption r12), which loads as an empty configuration. It merges the
+     * files itself (`ModelFileCheck.importInto`).
+     */
     suspend fun importModel(importFile: String, targetModelFile: String): Boolean
 
     /** `rcDeleteModel(filePath)`. */

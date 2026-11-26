@@ -37,13 +37,17 @@ import org.openax12.core.model.DualRateSlot
 import org.openax12.core.model.FirmwareInfo
 import org.openax12.core.model.LiveSnapshot
 import org.openax12.core.model.MixLine
+import org.openax12.core.model.ModelFileCheck
 import org.openax12.core.model.ModelInfo
 import org.openax12.core.model.NO_CURVE
+import org.openax12.core.model.ModelConfigFile
 import org.openax12.core.model.OutputChannelConfig
+import org.openax12.core.model.RawSystemFields
 import org.openax12.core.model.RadioStatus
 import org.openax12.core.model.SourceId
 import org.openax12.core.model.SourceInfo
 import org.openax12.core.model.SystemConfig
+import org.openax12.core.model.SystemConfigValidity
 import org.openax12.core.model.TIMER_COUNT
 import org.openax12.core.model.TelemetryAlarm
 import org.openax12.core.model.TelemetryItem
@@ -65,6 +69,8 @@ import org.openax12.core.radio.TaskResult
  * @property clock monotonic milliseconds (`SystemClock.elapsedRealtime()`)
  * @property probePort best-effort look at the serial port after a silent start
  * @property fileExists true if the path is an existing regular file
+ * @property readText the text of a (small) file, or null if it cannot be read
+ * @property writeText replaces a (small) file by the text (all or nothing), false if that failed
  */
 internal class SdkEnvironment(
     val loadError: Throwable?,
@@ -72,11 +78,16 @@ internal class SdkEnvironment(
     val clock: () -> Long,
     val probePort: () -> PortProbeResult,
     val fileExists: (String) -> Boolean,
+    val readText: (String) -> String? = { null },
+    val writeText: (String, String) -> Boolean = { _, _ -> false },
     val info: (String) -> Unit = {},
     val warn: (String, Throwable?) -> Unit = { _, _ -> },
 ) {
     companion object {
         private const val TAG = "SdkRadio"
+
+        /** A model file is about 50 KB; anything beyond this is not read. */
+        private const val MAX_MODEL_FILE_BYTES = 4L * 1024 * 1024
 
         fun forDevice(context: Context, loadError: Throwable?): SdkEnvironment = SdkEnvironment(
             loadError = loadError,
@@ -87,6 +98,19 @@ internal class SdkEnvironment(
             clock = SystemClock::elapsedRealtime,
             probePort = { SerialPortProbe.forDevice().probe() },
             fileExists = { File(it).isFile },
+            readText = { path -> runCatching { File(path).takeIf { it.isFile && it.length() <= MAX_MODEL_FILE_BYTES }?.readText() }.getOrNull() },
+            writeText = { path, text ->
+                runCatching {
+                    // Written beside the target and renamed over it: the SDK never sees a half-written file.
+                    val target = File(path)
+                    val temp = File(target.parentFile, "${target.name}.openax12.tmp")
+                    temp.writeText(text)
+                    if (!temp.renameTo(target)) {
+                        temp.delete()
+                        error("rename failed")
+                    }
+                }.isSuccess
+            },
             info = { Log.i(TAG, it) },
             warn = { message, error -> Log.w(TAG, message, error) },
         )
@@ -648,10 +672,28 @@ class SdkRadio internal constructor(
         _configRevision.value += 1
     }
 
-    private suspend fun runDeviceTask(slot: TaskSlot, timeout: Duration, send: () -> Unit): TaskResult =
+    /**
+     * Starts a device task and waits for its completion message. [refusal] runs on the SDK thread
+     * right before the task is sent; a non-null text refuses the task ([TaskResult.REFUSED]).
+     */
+    private suspend fun runDeviceTask(
+        slot: TaskSlot,
+        timeout: Duration,
+        refusal: (() -> String?)? = null,
+        send: () -> Unit,
+    ): TaskResult =
         withContext(sdkDispatcher) {
             if (!usable()) return@withContext TaskResult.NOT_READY
             if (slot.pending != null) return@withContext TaskResult.BUSY
+            val refused = try {
+                refusal?.invoke()
+            } catch (t: Throwable) {
+                "the check failed: ${t.message ?: t.javaClass.simpleName}"
+            }
+            if (refused != null) {
+                environment.warn("device task refused: $refused", null)
+                return@withContext TaskResult.REFUSED
+            }
             val done = CompletableDeferred<Boolean>()
             slot.pending = done
             try {
@@ -688,7 +730,17 @@ class SdkRadio internal constructor(
         runDeviceTask(readSlot, timeout) { native.readConfigFromDevice() }
 
     override suspend fun saveConfigToDevice(timeout: Duration): TaskResult =
-        runDeviceTask(writeSlot, timeout) { native.saveConfigToDevice() }
+        runDeviceTask(writeSlot, timeout, refusal = ::incompleteWorkingConfig) { native.saveConfigToDevice() }
+
+    /**
+     * Last line of defence before `taskSaveConfigToDevice` (it writes the whole working config):
+     * why the working config must not be written, or null. An SDK that loaded a model file without
+     * channel data (assumption r11) holds channels with all limits 0 and no mixes.
+     */
+    private fun incompleteWorkingConfig(): String? {
+        val channels = native.getChannels()?.let(SdkMapping::outputChannels).orEmpty()
+        return ModelFileCheck.channelsProblem(channels)
+    }
 
     override suspend fun resetToDefaults(): Boolean = onSdk(false) {
         native.resetDefault()
@@ -923,16 +975,115 @@ class SdkRadio internal constructor(
     // System configuration and device control
     // ------------------------------------------------------------------------------------------
 
-    override suspend fun getSystemConfig(): SystemConfig? = onSdk(null) { native.getSysConfig()?.let(SdkMapping::systemConfig) }
+    /**
+     * The radio-wide settings are **not** read with `rcGetRcSysConfig()`: on the AX12 its failure
+     * path returns an uninitialised struct (assumption r5). The real values are the `RC_MODEL_CFG`
+     * fields of the current model file, which is also where the stock app reads them from. The
+     * result is null (= "unavailable") unless that file can be found, parsed and passes
+     * [SystemConfigValidity]; the SDK getter is only compared for the diagnostics.
+     */
+    override suspend fun getSystemConfig(): SystemConfig? = onSdk(null) {
+        readSystemFields()?.let { SdkMapping.systemConfig(SdkMapping.rawSysCfg(it)) }
+    }
 
+    /**
+     * Read-modify-write on the values of the current model file (never on `rcGetRcSysConfig()`,
+     * see [getSystemConfig]), written with `rcSetRcSysConfig()`.
+     *
+     * That SDK setter has a bug (assumption r6, from the disassembly of `librmAxSdk1.so` and
+     * observed on the AX12 on 2026-11-26): it copies 43 bytes (`stickMode`, the 36 pre-flight
+     * presets and then `rfModuleMode`, `alramVtg`, `joytickBeep`, `modelMatchId`, `crsfBaudRate` and
+     * one byte beyond the header's struct) into a region that holds only 37 of them, so the last six
+     * bytes land on the first bytes of **curve 0** (`cType`, `ptNum`, `xVal[0..3]`). Curve 0 is
+     * therefore read before the call and written back right after it, and the result is verified;
+     * if that fails the call reports `false` and the working config must be discarded.
+     * The struct is also handed over in a zero-padded buffer by the JNI bridge so that the extra
+     * byte is not stack garbage.
+     */
     override suspend fun setSystemConfig(config: SystemConfig): Boolean = onSdk(false) {
-        val raw = native.getSysConfig()
-        if (raw == null || !SdkMapping.overlaySystemConfig(raw, config) || !native.setSysConfig(raw)) {
-            false
-        } else {
-            configChanged()
-            true
+        val current = readSystemFields() ?: return@onSdk false
+        val raw = SdkMapping.rawSysCfg(current)
+        if (!SdkMapping.overlaySystemConfig(raw, config)) return@onSdk false
+        val problem = SystemConfigValidity.problem(SdkMapping.rawSystemFields(raw))
+        if (problem != null) {
+            environment.warn("system config write refused: $problem", null)
+            return@onSdk false
         }
+        if (SdkMapping.rawSystemFields(raw) == current) return@onSdk true
+        // Without curve 0 the damage cannot be undone: do not write at all.
+        val curve0 = readCurve(0) ?: return@onSdk false
+        val applied = native.setSysConfig(raw)
+        val repaired = restoreCurve(curve0)
+        configChanged()
+        if (!repaired) environment.warn("system config write: curve 0 could not be restored", null)
+        applied && repaired
+    }
+
+    /**
+     * Writes [saved] back with `rcSetCurveCfg` and reports whether it reads back as it was.
+     *
+     * `rcSetCurveCfg` stores `cType`, `ptNum`, `xVal[0]` and `yVal[0]` and then only the first
+     * `ptNum` points (disassembly of the SDK), so a curve with `ptNum` below 4 (e.g. an expo curve:
+     * 0) cannot be repaired in one call: `xVal[1..3]` would stay damaged. The curve is therefore
+     * written first with all points (`ptNum` = 12) and then once more with its real header.
+     */
+    private fun restoreCurve(saved: RawCurve): Boolean {
+        val allPoints = RawCurve().apply {
+            idx = saved.idx
+            cType = saved.cType
+            ptNum = RawSizes.CURVE_POINTS
+            xVal = saved.xVal.copyOf()
+            yVal = saved.yVal.copyOf()
+        }
+        if (native.setCurve(allPoints) != 0 || native.setCurve(saved) != 0) return false
+        val now = readCurve(saved.idx)
+        return now != null && now.sameAs(saved)
+    }
+
+    private fun RawCurve.sameAs(other: RawCurve): Boolean =
+        cType == other.cType && ptNum == other.ptNum && xVal.contentEquals(other.xVal) && yVal.contentEquals(other.yVal)
+
+    /** The raw system fields of the current model file if they are trustworthy, else null. */
+    private fun readSystemFields(): RawSystemFields? {
+        val file = currentModelFile()
+        if (file == null) {
+            environment.warn("system config unavailable: the current model file is unknown", null)
+            return null
+        }
+        val text = environment.readText(file)
+        if (text == null) {
+            environment.warn("system config unavailable: cannot read the model file", null)
+            return null
+        }
+        val fields = ModelConfigFile.readSystem(text)
+        if (fields == null) {
+            environment.warn("system config unavailable: the model file has no RC_MODEL_CFG system fields", null)
+            return null
+        }
+        val problem = SystemConfigValidity.problem(fields)
+        if (problem != null) {
+            environment.warn("system config unavailable: $problem", null)
+            return null
+        }
+        return fields
+    }
+
+    /**
+     * The path of the current model file, resolved like `Radio.getCurrentModel()` (the model whose
+     * `modelIdx` equals the reported current index, else the entry at that position), with the
+     * SDK's own `RcCfgFile.json` (`lastModelFile`) as the fallback when the list does not resolve.
+     */
+    private fun currentModelFile(): String? {
+        val models = native.getModels().orEmpty()
+        val raw = native.getCurrentModelIndex()
+        if (raw >= 0) {
+            val found = models.firstOrNull { it.modelIdx == raw.toLong() } ?: models.getOrNull(raw)
+            found?.filePath?.takeIf { SdkMapping.isUsablePath(it) }?.let { return it }
+        }
+        val dataDir = environment.prepareDataDirectory() ?: return null
+        val last = environment.readText("$dataDir/${SdkAssumptions.CONFIG_FILE_NAME}") ?: return null
+        val path = LAST_MODEL_FILE.find(last)?.groupValues?.get(1) ?: return null
+        return path.takeIf { SdkMapping.isUsablePath(it) && models.any { m -> m.filePath == path } }
     }
 
     override suspend fun skipPreFlightCheck(): Boolean = onSdk(false) {
@@ -1017,11 +1168,23 @@ class SdkRadio internal constructor(
     }
 
     override suspend fun importModel(importFile: String, targetModelFile: String): Boolean = onSdk(false) {
+        // `rcImportModelCfg` would leave the target without channels and mixes (assumption r12), so
+        // the file is merged here: the source's content under the target's identity. The target
+        // must already exist (the SDK made it); the source must be a complete SDK model file.
         val imported = SdkMapping.isUsablePath(importFile) && SdkMapping.isUsablePath(targetModelFile) && importFile != targetModelFile &&
-            environment.fileExists(importFile) && native.importModel(importFile, targetModelFile) == 0
+            environment.fileExists(importFile) && environment.fileExists(targetModelFile) &&
+            mergeModelFile(importFile, targetModelFile)
         // The target may be the model the working config was loaded from (assumption s2).
         if (imported) cachedCounts = null
         imported
+    }
+
+    /** Writes the merge of [ModelFileCheck.importInto] into [targetModelFile]; false (nothing written) if it is not possible. */
+    private fun mergeModelFile(importFile: String, targetModelFile: String): Boolean {
+        val source = environment.readText(importFile) ?: return false
+        val target = environment.readText(targetModelFile) ?: return false
+        val merged = ModelFileCheck.importInto(source, target) ?: return false
+        return environment.writeText(targetModelFile, merged)
     }
 
     override suspend fun deleteModel(modelFile: String): Boolean = onSdk(false) {
@@ -1155,6 +1318,9 @@ class SdkRadio internal constructor(
 
         /** "No timestamp yet". */
         const val NEVER = Long.MIN_VALUE
+
+        /** `"lastModelFile": "<path>"` in the SDK's `RcCfgFile.json`. */
+        val LAST_MODEL_FILE = Regex("\"lastModelFile\"\\s*:\\s*\"([^\"]+)\"")
 
         /**
          * The one thread all SDK calls of the process run on, shared by every instance (the SDK is

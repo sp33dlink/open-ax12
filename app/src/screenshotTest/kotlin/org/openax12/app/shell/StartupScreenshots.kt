@@ -8,6 +8,7 @@ import org.openax12.core.designsystem.Ax12Preview
 import org.openax12.core.designsystem.Ax12Theme
 import org.openax12.core.designsystem.AxScreen
 import org.openax12.core.designsystem.AxStatusBar
+import org.openax12.app.R
 import org.openax12.core.radio.ConnectionError
 
 @PreviewTest
@@ -22,4 +23,75 @@ fun StartupErrorScreenshot() {
             StartupErrorContent(reason = ConnectionError.DeviceTimeout(), onRetry = {}, onContinue = {})
         }
     }
+}
+
+@Composable
+private fun StartupFrame(content: @Composable () -> Unit) {
+    Ax12Theme {
+        AxScreen(
+            modifier = Modifier.fillMaxSize(),
+            statusBar = { AxStatusBar(title = "OpenAX12", linkQuality = { 0 }, rxVoltage = { 0f }, txVoltage = { 7.9f }, dateTime = "2026-11-19  10:00") },
+        ) {
+            content()
+        }
+    }
+}
+
+@PreviewTest
+@Ax12Preview
+@Composable
+fun StartupErrorStockInstalledScreenshot() {
+    StartupFrame {
+        StartupErrorContent(
+            reason = ConnectionError.SerialPortBusy(),
+            onRetry = {},
+            onContinue = {},
+            stockInstalled = true,
+            onCloseStock = {},
+            onOpenStockSettings = {},
+        )
+    }
+}
+
+@PreviewTest
+@Ax12Preview
+@Composable
+fun StartupConnectingScreenshot() {
+    StartupFrame { StartupLoadingContent(R.string.startup_connecting) }
+}
+
+@PreviewTest
+@Ax12Preview
+@Composable
+fun StartupConnectingSlowScreenshot() {
+    StartupFrame { StartupLoadingContent(R.string.startup_connecting, showStockHint = true, onCloseStock = {}) }
+}
+
+@Composable
+private fun OnboardingFrame(stockInstalled: Boolean = true) {
+    Ax12Theme {
+        OnboardingContent(
+            stockInstalled = stockInstalled,
+            closeStockApp = true,
+            onCloseStockAppChange = {},
+            startOnBoot = true,
+            onStartOnBootChange = {},
+            onFinish = {},
+            statusBar = { AxStatusBar(title = "OpenAX12", linkQuality = { 0 }, rxVoltage = { 0f }, txVoltage = { 7.9f }, dateTime = "2026-11-19  10:00") },
+        )
+    }
+}
+
+@PreviewTest
+@Ax12Preview
+@Composable
+fun OnboardingScreenshot() {
+    OnboardingFrame()
+}
+
+@PreviewTest
+@Ax12Preview
+@Composable
+fun OnboardingNoStockScreenshot() {
+    OnboardingFrame(stockInstalled = false)
 }

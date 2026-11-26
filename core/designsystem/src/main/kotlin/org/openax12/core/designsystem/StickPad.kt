@@ -4,14 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
@@ -31,7 +23,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.collectLatest
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -45,31 +36,45 @@ enum class StickPadTrimEdge {
     End,
 }
 
-/** Stick deflection in percent from which a border of the [StickPad] lights up. */
-const val STICK_PAD_MAX_THRESHOLD: Float = 98f
+/**
+ * Stick deflection in percent at which a border of the [StickPad] lights up: exactly full
+ * deflection (+-100 %). Live values are integer percent clamped to +-100, so a stick that never
+ * reaches its full raw travel never lights its border, which reveals missing calibration.
+ */
+const val STICK_PAD_MAX_THRESHOLD: Float = 100f
+
+/** True if [value] (percent) is at full positive deflection (>= +100 %). */
+internal fun isStickAtPositiveMax(value: Float): Boolean = value >= STICK_PAD_MAX_THRESHOLD
+
+/** True if [value] (percent) is at full negative deflection (<= -100 %). */
+internal fun isStickAtNegativeMax(value: Float): Boolean = value <= -STICK_PAD_MAX_THRESHOLD
 
 /** Largest deflection in percent on both axes that still counts as dead centre. */
 const val STICK_PAD_CENTER_THRESHOLD: Float = 2f
 
 /**
- * Live stick display, the modernised version of the stock pad (SPEC section 2): a raised card
- * holding a rounded square field with a subtle grid, the stick position as a dot with a short
- * motion trail, four separate border segments and a centre marker.
+ * Live stick display, the modernised version of the stock pad (SPEC section 2): a rounded square
+ * field with a subtle grid, the stick position as a dot, four border segments and a centre marker.
+ * There is no card around the field: the trims ride on its border, so the field can use the whole
+ * pad area.
  *
  * - A border **lights up with an accent glow while the stick is at its maximum on that side**
- *   (|value| >= [STICK_PAD_MAX_THRESHOLD] %); in a corner two borders and the corner between them
+ *   (exactly +-[STICK_PAD_MAX_THRESHOLD] %, so an uncalibrated stick that does not reach full
+ *   travel never lights it); in a corner two borders and the corner between them
  *   are lit.
  * - The **centre marker lights up while the stick is at dead centre** (both axes within
  *   +-[STICK_PAD_CENTER_THRESHOLD] %).
- * - Trims are slim sliders on the outer vertical edge and below the field.
+ * - Trims are small markers sliding along the outer vertical edge and the bottom edge of the
+ *   field, with a tick at the neutral position. They are drawn on top of a lit border with a
+ *   contrasting rim, so they stay readable.
  *
  * All values are lambdas read in the draw phase: pass e.g. `{ live.value.logic(src).toFloat() }`.
  * Nothing recomposes while the stick moves, and only this pad's layer is redrawn.
  *
  * @param x horizontal deflection in percent, -100 (left) .. +100 (right)
  * @param y vertical deflection in percent, -100 (down) .. +100 (up)
- * @param trimX horizontal trim in percent of its range (-100..+100); null hides the slider
- * @param trimY vertical trim in percent of its range (-100..+100); null hides the slider
+ * @param trimX horizontal trim in percent of its range (-100..+100); null hides the marker
+ * @param trimY vertical trim in percent of its range (-100..+100); null hides the marker
  * @param verticalTrimEdge edge carrying the vertical trim: [StickPadTrimEdge.Start] for the left
  *   pad, [StickPadTrimEdge.End] for the right pad
  */
@@ -82,101 +87,22 @@ fun StickPad(
     trimY: (() -> Float)? = null,
     verticalTrimEdge: StickPadTrimEdge = StickPadTrimEdge.Start,
 ) {
-    StickPadImpl(x, y, modifier, trimX, trimY, verticalTrimEdge, seedTrail = null)
-}
-
-/** Maximum age of a trail sample. */
-private const val TRAIL_NANOS = 260_000_000L
-private const val TRAIL_CAPACITY = 24
-
-/** Ring buffer of recent stick positions (percent) with their time stamps. */
-private class StickTrail {
-    val xs = FloatArray(TRAIL_CAPACITY)
-    val ys = FloatArray(TRAIL_CAPACITY)
-    val times = LongArray(TRAIL_CAPACITY)
-    var start = 0
-    var count = 0
-
-    /** True while there is something to fade out; drives the frame loop. */
-    var active by mutableStateOf(false)
-
-    /** Frame time; read by the draw so that it reruns while [active]. */
-    val frame = mutableLongStateOf(0L)
-
-    fun index(i: Int): Int = (start + i) % TRAIL_CAPACITY
-
-    fun push(x: Float, y: Float, time: Long) {
-        if (count == TRAIL_CAPACITY) {
-            start = (start + 1) % TRAIL_CAPACITY
-            count--
-        }
-        val i = index(count)
-        xs[i] = x
-        ys[i] = y
-        times[i] = time
-        count++
-    }
-
-    /** Drops samples older than [TRAIL_NANOS], always keeping the newest one. */
-    fun prune(now: Long) {
-        while (count > 1 && now - times[start] > TRAIL_NANOS) {
-            start = (start + 1) % TRAIL_CAPACITY
-            count--
-        }
-    }
-}
-
-@Composable
-internal fun StickPadImpl(
-    x: () -> Float,
-    y: () -> Float,
-    modifier: Modifier,
-    trimX: (() -> Float)?,
-    trimY: (() -> Float)?,
-    verticalTrimEdge: StickPadTrimEdge,
-    seedTrail: FloatArray?,
-) {
     val colors = AxTheme.colors
     val description = stringResource(R.string.ax_cd_stick_pad)
-    val trail = remember {
-        StickTrail().also { t ->
-            // Screenshot tests seed a trail (x, y pairs, oldest first) to make it visible in one frame.
-            if (seedTrail != null) {
-                val now = System.nanoTime()
-                val n = seedTrail.size / 2
-                for (i in 0 until n) {
-                    t.push(seedTrail[2 * i], seedTrail[2 * i + 1], now - (n - i).toLong() * TRAIL_NANOS / (n + 2))
-                }
-            }
-        }
-    }
-    LaunchedEffect(trail) {
-        snapshotFlow { trail.active }.collectLatest { active ->
-            if (active) {
-                while (true) withFrameNanos { trail.frame.longValue = it }
-            }
-        }
-    }
+    val trimAtStart = verticalTrimEdge == StickPadTrimEdge.Start
 
-    Box(
-        modifier = modifier
-            .semantics { contentDescription = description }
-            .axRaised(cornerRadius = AxTheme.shapes.card, elevation = 5.dp),
-    ) {
-        val geometry = remember(trimX != null, trimY != null, verticalTrimEdge) {
-            PadGeometry(hasTrimX = trimX != null, hasTrimY = trimY != null, trimAtStart = verticalTrimEdge == StickPadTrimEdge.Start)
-        }
-        // Static layer: the sunken field and its grid. Not redrawn while the stick moves.
-        val fieldColor = colors.surfaceSunken
-        val gridColor = colors.outline
-        val neumorphic = colors.neumorphic
-        val lightShadow = colors.shadowLight
-        val darkShadow = colors.shadowDark
+    // Static layer: the sunken field and its grid. Not redrawn while the stick moves.
+    val fieldColor = colors.surfaceSunken
+    val gridColor = colors.outline
+    val neumorphic = colors.neumorphic
+    val lightShadow = colors.shadowLight
+    val darkShadow = colors.shadowDark
+    Box(modifier = modifier.semantics { contentDescription = description }) {
         Spacer(
             modifier = Modifier
                 .fillMaxSize()
                 .drawWithCache {
-                    val field = geometry.field(this, size)
+                    val field = padField(this, size)
                     val radius = FieldRadius.toPx()
                     val patch = if (neumorphic) {
                         NeumorphicCache.sunken(
@@ -200,7 +126,7 @@ internal fun StickPadImpl(
                         } else {
                             drawRoundRect(fieldColor, topLeft = field.topLeft, size = field.size, cornerRadius = CornerRadius(radius))
                         }
-                        drawGrid(field, geometry.travelInset(this), gridColor)
+                        drawGrid(field, travelInset(this), gridColor)
                     }
                 },
         )
@@ -210,35 +136,21 @@ internal fun StickPadImpl(
                 .fillMaxSize()
                 .graphicsLayer()
                 .drawWithCache {
-                    val field = geometry.field(this, size)
-                    val inset = geometry.travelInset(this)
+                    val field = padField(this, size)
+                    val inset = travelInset(this)
                     val centerHalo = Brush.radialGradient(
                         colors = listOf(colors.glow.copy(alpha = 0.55f), colors.glow.copy(alpha = 0.18f), Color.Transparent),
                         center = field.center,
                         radius = 20.dp.toPx(),
                     )
                     onDrawBehind {
-                        // Subscribe to the frame clock while a trail is fading.
-                        trail.frame.longValue
                         val px = sanitize(x())
                         val py = sanitize(y())
-                        val now = System.nanoTime()
-                        val last = if (trail.count > 0) trail.index(trail.count - 1) else -1
-                        if (last < 0 || trail.xs[last] != px || trail.ys[last] != py) {
-                            trail.push(px, py, now)
-                        } else if (trail.count == 1) {
-                            trail.times[last] = now
-                        }
-                        trail.prune(now)
-                        val fading = trail.count > 1
-                        if (trail.active != fading) trail.active = fading
-
                         drawBorders(field, px, py, colors)
                         drawCenterMarker(field, px, py, colors, centerHalo)
-                        drawTrail(trail, field, inset, now, colors.accent)
                         drawStickDot(field, inset, px, py, colors)
-                        if (trimY != null) drawVerticalTrim(geometry, field, sanitize(trimY()), colors)
-                        if (trimX != null) drawHorizontalTrim(geometry, field, sanitize(trimX()), colors)
+                        if (trimY != null) drawVerticalTrim(field, trimAtStart, sanitize(trimY()), colors, litSide = if (trimAtStart) isStickAtNegativeMax(px) else isStickAtPositiveMax(px))
+                        if (trimX != null) drawHorizontalTrim(field, sanitize(trimX()), colors, litSide = isStickAtNegativeMax(py))
                     }
                 },
         )
@@ -246,31 +158,24 @@ internal fun StickPadImpl(
 }
 
 private val FieldRadius: Dp = 14.dp
-private val PadPadding: Dp = 10.dp
-private val TrimStrip: Dp = 16.dp
+
+/** Space kept free around the field for the glow of a lit border. */
+private val PadPadding: Dp = 4.dp
 private val DotRadius: Dp = 6.5.dp
 
 private fun sanitize(v: Float): Float = if (v.isNaN()) 0f else v.coerceIn(-100f, 100f)
 
-/** Where the square field and the trim sliders sit inside the pad. */
-private class PadGeometry(val hasTrimX: Boolean, val hasTrimY: Boolean, val trimAtStart: Boolean) {
-    fun field(density: Density, size: Size): Rect = with(density) {
-        val pad = PadPadding.toPx()
-        val strip = TrimStrip.toPx()
-        val left = pad + if (hasTrimY && trimAtStart) strip else 0f
-        val right = size.width - pad - if (hasTrimY && !trimAtStart) strip else 0f
-        val top = pad
-        val bottom = size.height - pad - if (hasTrimX) strip else 0f
-        val side = max(0f, min(right - left, bottom - top))
-        // Square, centred in the space the trims leave.
-        val l = (left + (right - left - side) / 2f).toInt().toFloat()
-        val t = (top + (bottom - top - side) / 2f).toInt().toFloat()
-        Rect(l, t, l + side.toInt(), t + side.toInt())
-    }
-
-    /** Distance from the field edge to the dot centre at full deflection. */
-    fun travelInset(density: Density): Float = with(density) { DotRadius.toPx() + 7.dp.toPx() }
+/** The square field, centred in the pad. */
+private fun padField(density: Density, size: Size): Rect = with(density) {
+    val pad = PadPadding.toPx()
+    val side = max(0f, min(size.width, size.height) - 2f * pad).toInt().toFloat()
+    val l = ((size.width - side) / 2f).toInt().toFloat()
+    val t = ((size.height - side) / 2f).toInt().toFloat()
+    Rect(l, t, l + side, t + side)
 }
+
+/** Distance from the field edge to the dot centre at full deflection. */
+private fun travelInset(density: Density): Float = with(density) { DotRadius.toPx() + 7.dp.toPx() }
 
 private fun DrawScope.drawGrid(field: Rect, inset: Float, color: Color) {
     val stroke = 1.dp.toPx()
@@ -321,10 +226,10 @@ private fun DrawScope.drawGlowArc(color: Color, topLeft: Offset, diameter: Float
  * is at the maximum on that side; a corner arc lights up when both adjacent sides are lit.
  */
 private fun DrawScope.drawBorders(field: Rect, x: Float, y: Float, colors: AxColors) {
-    val right = x >= STICK_PAD_MAX_THRESHOLD
-    val left = x <= -STICK_PAD_MAX_THRESHOLD
-    val top = y >= STICK_PAD_MAX_THRESHOLD
-    val bottom = y <= -STICK_PAD_MAX_THRESHOLD
+    val right = isStickAtPositiveMax(x)
+    val left = isStickAtNegativeMax(x)
+    val top = isStickAtPositiveMax(y)
+    val bottom = isStickAtNegativeMax(y)
 
     val idleWidth = 1.5.dp.toPx()
     val litWidth = 3.dp.toPx()
@@ -399,26 +304,6 @@ private fun stickX(field: Rect, inset: Float, x: Float): Float =
 private fun stickY(field: Rect, inset: Float, y: Float): Float =
     field.center.y - (field.height / 2f - inset) * y / 100f
 
-/** Motion trail: line segments through the recent positions, fading and thinning with age. */
-private fun DrawScope.drawTrail(trail: StickTrail, field: Rect, inset: Float, now: Long, color: Color) {
-    if (trail.count < 2) return
-    val maxWidth = DotRadius.toPx() * 1.5f
-    for (i in 0 until trail.count - 1) {
-        val a = trail.index(i)
-        val b = trail.index(i + 1)
-        val age = ((now - trail.times[b]).toFloat() / TRAIL_NANOS).coerceIn(0f, 1f)
-        val strength = 1f - age
-        if (strength <= 0.02f) continue
-        drawLine(
-            color = color.copy(alpha = 0.42f * strength),
-            start = Offset(stickX(field, inset, trail.xs[a]), stickY(field, inset, trail.ys[a])),
-            end = Offset(stickX(field, inset, trail.xs[b]), stickY(field, inset, trail.ys[b])),
-            strokeWidth = maxWidth * (0.25f + 0.75f * strength),
-            cap = StrokeCap.Round,
-        )
-    }
-}
-
 private fun DrawScope.drawStickDot(field: Rect, inset: Float, x: Float, y: Float, colors: AxColors) {
     val c = Offset(stickX(field, inset, x), stickY(field, inset, y))
     val r = DotRadius.toPx()
@@ -429,57 +314,55 @@ private fun DrawScope.drawStickDot(field: Rect, inset: Float, x: Float, y: Float
     drawCircle(colors.accent, radius = r, center = c)
 }
 
-private fun DrawScope.drawTrimThumb(center: Offset, vertical: Boolean, trim: Float, colors: AxColors) {
-    val long = 16.dp.toPx()
-    val short = 5.dp.toPx()
+/** Marker long side, short side and the contrasting rim around it. */
+private val TrimLong: Dp = 18.dp
+private val TrimShort: Dp = 6.dp
+private val TrimRim: Dp = 1.75.dp
+
+/** The marker: an accent pill with a contrasting rim, so it reads on top of an idle or a lit border. */
+private fun DrawScope.drawTrimMarker(center: Offset, vertical: Boolean, colors: AxColors) {
+    val long = TrimLong.toPx()
+    val short = TrimShort.toPx()
+    val rim = TrimRim.toPx()
     val w = if (vertical) short else long
     val h = if (vertical) long else short
-    val color = if (abs(trim) < 0.5f) colors.accent else colors.accent
-    if (colors.neumorphic) {
-        drawRoundRect(
-            color = colors.shadowDark.copy(alpha = 0.45f),
-            topLeft = Offset(center.x - w / 2f + 1.dp.toPx(), center.y - h / 2f + 1.5.dp.toPx()),
-            size = Size(w, h),
-            cornerRadius = CornerRadius(short / 2f),
-        )
-    }
+    val rimColor = if (colors.isLight) Color.White else colors.background
     drawRoundRect(
-        color = color,
+        color = rimColor,
+        topLeft = Offset(center.x - w / 2f - rim, center.y - h / 2f - rim),
+        size = Size(w + 2f * rim, h + 2f * rim),
+        cornerRadius = CornerRadius(short / 2f + rim),
+    )
+    drawRoundRect(
+        color = colors.accent,
         topLeft = Offset(center.x - w / 2f, center.y - h / 2f),
         size = Size(w, h),
         cornerRadius = CornerRadius(short / 2f),
     )
 }
 
-private fun DrawScope.drawTrimTrack(from: Offset, to: Offset, colors: AxColors) {
-    val mid = Offset((from.x + to.x) / 2f, (from.y + to.y) / 2f)
-    drawLine(colors.track, from, to, strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
-    // Centre notch.
-    val n = 4.dp.toPx()
-    val vertical = from.x == to.x
-    val a = if (vertical) Offset(mid.x - n, mid.y) else Offset(mid.x, mid.y - n)
-    val b = if (vertical) Offset(mid.x + n, mid.y) else Offset(mid.x, mid.y + n)
-    drawLine(colors.textFaint, a, b, strokeWidth = 1.5.dp.toPx(), cap = StrokeCap.Round)
+/** Neutral-position tick across the border at [center]; drawn light on a lit border. */
+private fun DrawScope.drawTrimTick(center: Offset, vertical: Boolean, litSide: Boolean, colors: AxColors) {
+    val half = 5.dp.toPx()
+    val color = if (litSide) (if (colors.isLight) Color.White else colors.background) else colors.textFaint
+    val from = if (vertical) Offset(center.x - half, center.y) else Offset(center.x, center.y - half)
+    val to = if (vertical) Offset(center.x + half, center.y) else Offset(center.x, center.y + half)
+    drawLine(color, from, to, strokeWidth = 1.5.dp.toPx(), cap = StrokeCap.Round)
 }
 
-private fun DrawScope.drawVerticalTrim(geometry: PadGeometry, field: Rect, trim: Float, colors: AxColors) {
-    val strip = TrimStrip.toPx()
-    val cx = if (geometry.trimAtStart) field.left - strip / 2f - 1.dp.toPx() else field.right + strip / 2f + 1.dp.toPx()
-    val margin = 12.dp.toPx()
-    val top = field.top + margin
-    val bottom = field.bottom - margin
-    drawTrimTrack(Offset(cx, top), Offset(cx, bottom), colors)
-    val cy = (top + bottom) / 2f - (bottom - top) / 2f * trim / 100f
-    drawTrimThumb(Offset(cx, cy), vertical = true, trim = trim, colors = colors)
+/** Range of a marker along its border: stays on the straight part of the edge, clear of the corners. */
+private fun DrawScope.trimTravel(): Float = FieldRadius.toPx() + TrimLong.toPx() / 2f
+
+private fun DrawScope.drawVerticalTrim(field: Rect, atStart: Boolean, trim: Float, colors: AxColors, litSide: Boolean) {
+    val x = (if (atStart) field.left else field.right) + (if (atStart) 1.dp.toPx() else -1.dp.toPx())
+    val travel = field.height / 2f - trimTravel()
+    drawTrimTick(Offset(x, field.center.y), vertical = true, litSide = litSide, colors = colors)
+    drawTrimMarker(Offset(x, field.center.y - travel * trim / 100f), vertical = true, colors = colors)
 }
 
-private fun DrawScope.drawHorizontalTrim(geometry: PadGeometry, field: Rect, trim: Float, colors: AxColors) {
-    val strip = TrimStrip.toPx()
-    val cy = field.bottom + strip / 2f + 1.dp.toPx()
-    val margin = 12.dp.toPx()
-    val left = field.left + margin
-    val right = field.right - margin
-    drawTrimTrack(Offset(left, cy), Offset(right, cy), colors)
-    val cx = (left + right) / 2f + (right - left) / 2f * trim / 100f
-    drawTrimThumb(Offset(cx, cy), vertical = false, trim = trim, colors = colors)
+private fun DrawScope.drawHorizontalTrim(field: Rect, trim: Float, colors: AxColors, litSide: Boolean) {
+    val y = field.bottom - 1.dp.toPx()
+    val travel = field.width / 2f - trimTravel()
+    drawTrimTick(Offset(field.center.x, y), vertical = false, litSide = litSide, colors = colors)
+    drawTrimMarker(Offset(field.center.x + travel * trim / 100f, y), vertical = false, colors = colors)
 }

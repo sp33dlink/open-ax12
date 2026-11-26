@@ -108,8 +108,8 @@ internal object FlightModeEdits {
 
     /**
      * Starting point for a model of [type] on [switch]: three modes on up / mid / down with
-     * useful names. A multirotor additionally gets its mode channel: CH5 is driven to −100 / 0 /
-     * +100 by the three positions, which is what flight controllers read as the mode value.
+     * useful names. A multirotor additionally gets its mode channel: CH5 follows the
+     * switch value (up +100 / mid 0 / down −100), which is what flight controllers read as the mode value.
      * Gliders, planes and wings get no offsets (they depend on the airframe); helicopters get the
      * usual normal / idle-up names.
      */

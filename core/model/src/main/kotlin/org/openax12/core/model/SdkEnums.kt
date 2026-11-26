@@ -99,13 +99,13 @@ enum class RfModuleMode(val sdk: Int) {
  * is shown as [MODE_2] and kept as it is unless the mode is really changed (see the note at the top
  * of this file).
  *
- * The codes are the reverse of the mode numbers (observed on the AX12, 2026-11-21, assumption 11a):
- * a radio with throttle on the left stick (Mode 2) reports `stickMode = 1`.
+ * The codes are 0-based (verified 2026-11-25 in the stock app, which shows `stickMode + 1` and
+ * writes `mode - 1`): `0` = Mode 1, `1` = Mode 2. The SDK header's "1 or 2" is wrong.
  */
 @Serializable
 enum class StickMode(val sdk: Int) {
     /** Left: Ele (vertical) / Rud (horizontal). Right: Thr / Ail. */
-    MODE_1(2),
+    MODE_1(0),
 
     /** Left: Thr (vertical) / Rud (horizontal). Right: Ele / Ail. */
     MODE_2(1);
@@ -124,7 +124,7 @@ enum class StickMode(val sdk: Int) {
 
     companion object {
         /** Unknown codes map to [MODE_2]. */
-        fun fromSdk(value: Int): StickMode = if (value == 2) MODE_1 else MODE_2
+        fun fromSdk(value: Int): StickMode = if (value == 0) MODE_1 else MODE_2
     }
 }
 

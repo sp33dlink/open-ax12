@@ -220,6 +220,7 @@ internal fun DataError.messageRes(): Int = when (this) {
     DataError.SCHEMA_TOO_NEW -> R.string.models_err_schema_too_new
     DataError.TOO_LARGE -> R.string.models_err_too_large
     DataError.BUSY -> R.string.models_err_busy
+    DataError.CONFIG_INCOMPLETE -> R.string.models_err_config_incomplete
 }
 
 /** User-facing message for a model-flow error of the config session. */
@@ -234,6 +235,12 @@ internal fun SessionError.messageRes(): Int = when (this) {
     SessionError.MODEL_NOT_FOUND -> R.string.models_err_not_found
     SessionError.UNSAVED_CHANGES -> R.string.models_err_unsaved
     SessionError.DEVICE_WRITE_PENDING -> R.string.models_err_write_pending
+    SessionError.CONFIG_INCOMPLETE -> R.string.models_err_config_incomplete
+    // Only `ConfigSession.updateSystemConfig` produces these; no model flow does.
+    SessionError.SYSTEM_CONFIG_UNAVAILABLE,
+    SessionError.SYSTEM_CONFIG_NOT_APPLIED,
+    SessionError.RF_OFF_NOT_CONFIRMED,
+    -> R.string.models_err_radio
 }
 
 /** Why an import source was rejected, for the user. */

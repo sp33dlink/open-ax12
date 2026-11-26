@@ -34,6 +34,14 @@ enum class DataError {
 
     /** Another operation of the same kind is still running. */
     BUSY,
+
+    /**
+     * A model file is incomplete (no channels or mixes), or the SDK did not load it completely
+     * (the working config differs from the file). Nothing was written to the radio; the previous
+     * model was loaded again (the library then shows "not confirmed on the radio" until it is
+     * written).
+     */
+    CONFIG_INCOMPLETE,
 }
 
 /**

@@ -7,7 +7,7 @@ Conventions used everywhere:
 
 - Channel, curve, slot, timer, mix, logical-switch and special-function indices are **0-based**
   (CH01 = 0, L1 = 0, SF1 = 0). Percentages are −100..+100.
-- Source indices are `SourceId` (0 Rud … 41 CNT6). Switch logic values are −100 / 0 / +100 (up / mid / down).
+- Source indices are `SourceId` (0 Rud … 41 CNT6). Switch logic values are +100 / 0 / −100 (up / mid / down).
 - Telemetry hashes are `Long`. Timestamps named `…Ms` are monotonic (`elapsedRealtime` base)
   unless documented as wall clock (`timeMs`, `atMs`, `lastUsedMs`, `startedMs`).
 - Nothing throws for expected failures: `Radio` returns `null` / `false` / empty, the data layer
@@ -72,7 +72,7 @@ runtime UI requests, applying settings).
 | Sources.kt | `SourceKind` | STICK, POT, SLIDER, SWITCH, COUNTER |
 | Sources.kt | `Sources` | Int constants `RUD`=0 … `CNT6`=41, ranges, default names |
 | Sources.kt | `SourceId` | Value class over the SDK source index; kind, default name, `fromName`, `pot/slider/switch/counter` |
-| Sources.kt | `SwitchPosition` | UP (−100) / MID (0) / DOWN (+100), `fromLogic` |
+| Sources.kt | `SwitchPosition` | UP (+100) / MID (0) / DOWN (−100), `fromLogic`, `byLogic` (ascending, for curves) |
 | SdkEnums.kt | `CompareOp` | DISABLED 0, GREATER 1, EQUAL 2, LESS 3 (`sdk`, `fromSdk`) |
 | SdkEnums.kt | `MixMode` | REPLACE 0, ADD 1, MULTIPLY 2 |
 | SdkEnums.kt | `CurveType` | NONE, DIFF, EXPO, FUNC, CUSTOM |
@@ -94,7 +94,7 @@ runtime UI requests, applying settings).
 | RadioConfig.kt | `TimerNotify` | Mirror of `RcTimeNotifyUI` |
 | RadioConfig.kt | `SystemConfig` | Mirror of `RcSysCfgDataUI`; pre-flight preset helpers |
 | RadioConfig.kt | `ModelInfo` | Mirror of `RcModelDataUI` |
-| RadioConfig.kt | `WorkingConfig` | Complete copy of the working config (sources, channels, mixes, curves, DRs, timers, system) with lookup helpers; `isEmpty` while the radio is not usable (never holds made-up defaults) |
+| RadioConfig.kt | `WorkingConfig` | Complete copy of the working config (sources, channels, mixes, curves, DRs, timers, system) with lookup helpers; `isEmpty` while the radio is not usable; `system` is null when the radio has no trustworthy system configuration (never holds made-up defaults) |
 | Live.kt | `RadioStatus` | Mirror of `RadioStatusUI`; `isLinkUp` (LQ > 0) |
 | Live.kt | `TimerState` | Latest state of a timer / counter inside a live frame |
 | Live.kt | `LiveSnapshot` | One immutable live frame: `raw/logic/output(source)`, `channel(i)`, trims, status, timers, sequence, timestamp; `EMPTY`, `of()` |
@@ -300,7 +300,7 @@ fun UnsavedChangesDialog(saving: Boolean, onSave: () -> Unit, onDiscard: () -> U
 - **New model from template:** `ModelTemplates.build(template, options, configSession.workingConfig.value)` → `configSession.createModel(name, blueprint)` (base plan with `resetConfig`, then wing and flight modes under their own generators, then save; rolled back completely on failure).
 - **Switch model:** confirm if linked → `configSession.selectModel(id)`; on `DEVICE_WRITE_PENDING` the model is loaded but not on the radio: show the badge, `save()` retries.
 - **Re-import / restore over the current model:** `configSession.acceptExternalChange(change)` / after `backup.restore(…)` with `currentModelReplaced`: `configSession.reloadCurrentModel(discardChanges = true)`.
-- **System settings (stick mode, alarm voltage, RF module):** `configSession.updateSystemConfig { it.copy(…) }`; restore defaults: `configSession.resetToDefaults()`.
+- **System settings (stick mode, alarm voltage, RF module):** `configSession.updateSystemConfig { it.copy(…) }` (`rfOffConfirmed = true` only after the user confirmed "Turn the RF module off?"; the change is also written into the other models of the library); restore defaults: `configSession.resetToDefaults()`.
 - **Jump to a setup tab from anywhere:** `navigator.openSetupTab(SetupTabIds.MIXES)`.
 - **Leaving model setup with unsaved changes:** nothing to do in the feature; the shell's guard asks.
 - **Pre-flight check:** read `runtime.preFlightCheck`, skip with `runtime.skipPreFlightCheck()`.

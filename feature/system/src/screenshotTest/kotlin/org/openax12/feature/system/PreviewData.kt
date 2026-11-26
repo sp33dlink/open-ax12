@@ -26,6 +26,7 @@ import org.openax12.core.model.SourceInfo
 import org.openax12.core.model.Sources
 import org.openax12.core.model.StickMode
 import org.openax12.core.model.SwitchCondition
+import org.openax12.core.model.SwitchPosition
 import org.openax12.core.model.SystemConfig
 import org.openax12.core.model.TimerConfig
 import org.openax12.core.model.Trims
@@ -133,9 +134,9 @@ internal fun sampleLive(): LiveSnapshot = LiveSnapshot.of(
         SourceId.AIL to 100,
         SourceId(Sources.P1) to 40,
         SourceId(Sources.S1) to -20,
-        SourceId.SA to -100,
-        SourceId.SB to 0,
-        SourceId.SC to 100,
+        SourceId.SA to SwitchPosition.UP.logic,
+        SourceId.SB to SwitchPosition.MID.logic,
+        SourceId.SC to SwitchPosition.DOWN.logic,
     ),
     channels = listOf(12, -35, -62, 100, 0, 0, 25, -50),
     trims = Trims.ZERO,

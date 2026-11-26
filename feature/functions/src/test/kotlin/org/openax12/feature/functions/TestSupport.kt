@@ -128,7 +128,7 @@ internal class FakeSession(
     override suspend fun save(): SessionResult<ModelSnapshot> = throw UnsupportedOperationException()
     override suspend fun discard(): SessionResult<Unit> = throw UnsupportedOperationException()
     override suspend fun previewPlan(plan: MixPlan): PlanDiff = throw UnsupportedOperationException()
-    override suspend fun updateSystemConfig(transform: (SystemConfig) -> SystemConfig): SessionResult<SystemConfig> = throw UnsupportedOperationException()
+    override suspend fun updateSystemConfig(rfOffConfirmed: Boolean, transform: (SystemConfig) -> SystemConfig): SessionResult<SystemConfig> = throw UnsupportedOperationException()
     override suspend fun resetToDefaults(): SessionResult<Unit> = throw UnsupportedOperationException()
     override suspend fun selectModel(modelId: String, discardChanges: Boolean): SessionResult<ModelEntry> = throw UnsupportedOperationException()
     override suspend fun createModel(name: String, blueprint: ModelBlueprint): SessionResult<ModelEntry> = throw UnsupportedOperationException()

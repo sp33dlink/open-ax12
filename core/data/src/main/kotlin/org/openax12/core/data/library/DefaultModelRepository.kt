@@ -4,7 +4,10 @@ import android.net.Uri
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.time.Instant
+import java.time.ZoneId
 import java.util.UUID
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +26,7 @@ import org.openax12.core.data.ModelEntry
 import org.openax12.core.data.ModelRepository
 import org.openax12.core.data.ModelSnapshot
 import org.openax12.core.data.PictureCropRect
+import org.openax12.core.data.RadioWideReport
 import org.openax12.core.data.ReconcileReport
 import org.openax12.core.data.SnapshotReason
 import org.openax12.core.data.StorageInfo
@@ -31,14 +35,24 @@ import org.openax12.core.data.storage.StorageLocator
 import org.openax12.core.model.AppDispatchers
 import org.openax12.core.model.MODEL_PICTURE_FILE_NAME
 import org.openax12.core.model.ModelBlueprint
+import org.openax12.core.model.ModelConfigFile
 import org.openax12.core.model.ModelExtras
 import org.openax12.core.model.ModelExtrasCodec
+import org.openax12.core.model.ModelFileCheck
 import org.openax12.core.model.ModelInfo
 import org.openax12.core.model.ModelType
+import org.openax12.core.model.RadioWidePatch
+import org.openax12.core.model.RawSystemFields
+import org.openax12.core.model.RfModuleMode
+import org.openax12.core.model.StickMode
+import org.openax12.core.model.SystemConfig
+import org.openax12.core.model.SystemConfigValidity
 import org.openax12.core.radio.ConnectionState
 import org.openax12.core.radio.Radio
 import org.openax12.core.radio.RadioEvent
+import org.openax12.core.radio.TaskResult
 import org.openax12.core.radio.getCurrentModel
+import org.openax12.core.radio.readWorkingConfig
 
 /** What a backup restore did with one model folder. */
 internal sealed interface FolderRestore {
@@ -69,6 +83,8 @@ internal sealed interface FolderRestore {
  *
  * @param privateDir a directory in the app's private storage (created on demand)
  * @param scope used only to watch the radio for device reads (see `deviceInSync`)
+ * @param importedModelName name (from the app's string resources) of a model that was taken over from
+ *   the radio and matches nothing in the library; gets the local date as `date`
  */
 internal class DefaultModelRepository(
     private val radio: Radio,
@@ -80,6 +96,7 @@ internal class DefaultModelRepository(
     private val dispatchers: AppDispatchers,
     private val appVersion: String = "",
     private val wallClock: () -> Long = System::currentTimeMillis,
+    private val importedModelName: (date: String) -> String = { date -> "Imported from radio $date" },
 ) : ModelRepository {
 
     private val mutex = Mutex()
@@ -140,7 +157,7 @@ internal class DefaultModelRepository(
         if (nameTaken(valid)) return@locked failure(DataError.NAME_EXISTS, valid)
         if (!radioReady()) return@locked notReady()
         val modelsDir = modelsDir() ?: return@locked storageFailure()
-        val target = radio.createModelInfo()?.takeIf { it.filePath.isNotEmpty() }
+        val target = newSdkTarget()
             ?: return@locked failure(DataError.RADIO_FAILED, "rcCreateModelCfg failed")
         if (!radio.saveWorkingConfigToModel(target.copy(name = valid))) {
             return@locked failure(DataError.RADIO_FAILED, "rcSaveCurrentCfgToModel failed")
@@ -264,9 +281,15 @@ internal class DefaultModelRepository(
         if (!radioReady()) return@locked notReady()
         val info = sdkModel(entry)
         if (info != null) {
-            // The SDK's current model must never be deleted, whatever the index believes.
-            if (radio.getCurrentModel()?.filePath == info.filePath) return@locked failure(DataError.IS_CURRENT_MODEL, entry.name)
-            if (!radio.deleteModel(info.filePath)) return@locked failure(DataError.RADIO_FAILED, "rcDeleteModel failed")
+            // Another entry may stand on the same SDK file (legacy state, see newSdkTarget): then the
+            // file stays and only this library entry goes. This must not be mistaken for "current".
+            val sharedWithOthers = index.entries.any { it.id != entry.id && it.sdkFile == info.filePath }
+            if (!sharedWithOthers) {
+                // The SDK's current model must never be deleted, whatever the index believes.
+                val currentFile = radio.getCurrentModel(index.entry(index.currentId)?.sdkFile)?.filePath
+                if (currentFile == info.filePath) return@locked failure(DataError.IS_CURRENT_MODEL, entry.name)
+                if (!radio.deleteModel(info.filePath)) return@locked failure(DataError.RADIO_FAILED, "rcDeleteModel failed")
+            }
         }
         folderOf(entry)?.deleteRecursively()
         shadowDir(entry.id).deleteRecursively()
@@ -284,6 +307,39 @@ internal class DefaultModelRepository(
     override suspend fun reloadCurrentModel(): DataResult<ModelEntry> = locked {
         val id = index.currentId ?: return@locked failure(DataError.NOT_FOUND, "no current model")
         loadModelLocked(id)
+    }
+
+    // -- Radio-wide settings --------------------------------------------------------------------
+
+    override suspend fun applyRadioWideSettings(patch: RadioWidePatch): DataResult<RadioWideReport> = locked {
+        patch.problem()?.let { return@locked failure(DataError.INVALID_FILE, it) }
+        if (patch.isEmpty) return@locked DataResult.Success(RadioWideReport())
+        if (!radioReady()) return@locked notReady()
+        val updated = ArrayList<String>()
+        val unchanged = ArrayList<String>()
+        val failed = ArrayList<String>()
+        for (entry in index.entries.toList()) {
+            if (entry.id == index.currentId) {
+                unchanged += entry.name
+                continue
+            }
+            val info = sdkModel(entry)
+            if (info == null) {
+                failed += "${entry.name}: unknown SDK model"
+                continue
+            }
+            when (val outcome = patchSdkFileLocked(entry, info, patch::differingFrom)) {
+                Patched.Changed -> {
+                    syncFolderFromSdk(entry, info)
+                    updated += entry.name
+                }
+                Patched.Unchanged -> unchanged += entry.name
+                is Patched.Failed -> failed += "${entry.name}: ${outcome.detail}"
+            }
+        }
+        saveIndex()
+        publish()
+        DataResult.Success(RadioWideReport(updated = updated, unchanged = unchanged, failed = failed))
     }
 
     // -- Extras ---------------------------------------------------------------------------------
@@ -341,6 +397,11 @@ internal class DefaultModelRepository(
             val keepExtras = entry.hasExtras || savedExtras != SDK_ONLY_EXTRAS
             if (keepExtras) updated = persistExtras(updated, savedExtras, folder)
             val export = exportSdkFile(info.filePath) ?: return@locked failure(DataError.RADIO_FAILED, "cannot export '${entry.name}'")
+            // Never replace the library's copy (and its snapshots) by an incomplete file.
+            ModelArchive.modelFileProblem(readLimited(export) ?: ByteArray(0))?.let {
+                export.delete()
+                return@locked failure(DataError.CONFIG_INCOMPLETE, "the SDK file of '${entry.name}' is incomplete, the library copy was kept: $it")
+            }
             val snapshot = try {
                 FileOps.copyFile(export, File(folder, SnapshotStore.MODEL_FILE))
                 SnapshotStore(folder).create(
@@ -504,9 +565,11 @@ internal class DefaultModelRepository(
         if (!radioReady()) return@locked notReady()
         val modelsDir = modelsDir() ?: return@locked storageFailure()
 
+        // Imported models take over the radio's stick mode, RF module and alarm voltage.
+        val modelBytes = harmonizedModelBytes(import.model, currentRadioWide())
         val temp = newTempFile("import")
         val info = try {
-            temp.writeBytes(import.model)
+            temp.writeBytes(modelBytes)
             importIntoSdk(temp, target)
         } catch (e: IOException) {
             return@locked failure(DataError.IO, e.message.orEmpty())
@@ -517,7 +580,7 @@ internal class DefaultModelRepository(
         val entry = SyncEntry(id = newId(), name = target, folder = target, sdkFile = info.filePath, modelMatch = info.modelMatch)
         try {
             val folder = FileOps.ensureDir(File(modelsDir, entry.folder))
-            if (writeModelFileFromSdk(info, folder) == null) FileOps.writeAtomic(File(folder, SnapshotStore.MODEL_FILE), import.model)
+            if (writeModelFileFromSdk(info, folder) == null) FileOps.writeAtomic(File(folder, SnapshotStore.MODEL_FILE), modelBytes)
             val picture = import.picture?.takeIf(pictures::isImage)
             if (picture != null) FileOps.writeAtomic(File(folder, MODEL_PICTURE_FILE_NAME), picture)
             val extras = import.extras?.copy(pictureFile = if (picture != null) MODEL_PICTURE_FILE_NAME else null)
@@ -547,8 +610,9 @@ internal class DefaultModelRepository(
         val folder = folderOf(entry)?.takeIf { it.isDirectory } ?: return@locked failure(DataError.NOT_FOUND, "no library folder")
         val store = SnapshotStore(folder)
         val modelFile = store.modelFile(snapshot.id) ?: return@locked failure(DataError.NOT_FOUND, snapshot.id)
-        if (!ModelArchive.isJsonObject(readLimited(modelFile) ?: ByteArray(0))) {
-            return@locked failure(DataError.INVALID_FILE, "the snapshot's model file is damaged")
+        val snapshotBytes = readLimited(modelFile) ?: ByteArray(0)
+        ModelArchive.modelFileProblem(snapshotBytes)?.let {
+            return@locked failure(DataError.INVALID_FILE, "the snapshot's model file is damaged: $it")
         }
         val restoredExtras = store.extrasFile(snapshot.id)?.let { file ->
             val decoded = ModelExtrasCodec.decodeOrNull(file.readText(Charsets.UTF_8))
@@ -559,6 +623,8 @@ internal class DefaultModelRepository(
         if (!radioReady()) return@locked notReady()
         val info = sdkModel(entry) ?: return@locked failure(DataError.RADIO_FAILED, "unknown SDK model")
         val isCurrent = entry.id == index.currentId
+        // Read the radio's values before the current model's file is replaced.
+        val wide = currentRadioWide()
         try {
             snapshotAppCopy(entry, info, folder, SnapshotReason.BEFORE_RESTORE, protect = snapshot.id)
         } catch (e: IOException) {
@@ -569,6 +635,7 @@ internal class DefaultModelRepository(
             return@locked failure(DataError.RADIO_FAILED, "rcImportModelCfg failed")
         }
         val newInfo = enforceName(info.filePath, entry.name) ?: info
+        wide?.let { patchSdkFileLocked(entry, newInfo, patchTo(it)) }
         var updated = entry.copy(sdkFile = newInfo.filePath, modelMatch = newInfo.modelMatch)
         try {
             if (writeModelFileFromSdk(newInfo, folder) == null) FileOps.copyFile(modelFile, File(folder, SnapshotStore.MODEL_FILE))
@@ -590,6 +657,11 @@ internal class DefaultModelRepository(
                 saveIndex()
                 publish()
                 return@locked failure(DataError.RADIO_FAILED, "rcLoadModelFile failed")
+            }
+            verifyLoaded(snapshotBytes.toString(Charsets.UTF_8))?.let { problem ->
+                // The restored model is the current one: put the working config back to what the
+                // device holds. The SDK's file is brought in line by that read.
+                return@locked abandonLoadLocked(entry, index, pendingEpoch, newInfo, problem)
             }
             loadCurrentExtras(force = true)
         }
@@ -661,10 +733,20 @@ internal class DefaultModelRepository(
 
         // 1. Match the SDK's models with what the app knows.
         val claimed = LinkedHashMap<String, Pair<SyncEntry, ModelInfo>>()
+        // A fresh SDK directory (app data cleared, new install): none of the files the app knew exists
+        // any more. The SDK then makes a "Model-<number>" file from the radio's MCU, which usually is
+        // a library model that has to be recognised instead of being added a second time.
+        val freshSdk = sdkList.none { model -> old.entries.any { it.sdkFile == model.filePath } }
+        val adoptedFolders = HashSet<String>()
         for (model in sdkList) {
             if (model.filePath.isEmpty()) continue
             val known = old.entries.firstOrNull { it.id !in claimed && it.sdkFile == model.filePath }
                 ?: old.entries.firstOrNull { e -> e.id !in claimed && e.name == model.name && sdkList.none { it.filePath == e.sdkFile } }
+            if (known == null && freshSdk && modelsDir != null) {
+                val adopted = adoptFreshSdkModel(model, modelsDir, old, claimed.keys, adoptedFolders)
+                claimed[adopted.first.id] = adopted
+                continue
+            }
             val entry = known?.copy(name = model.name, sdkFile = model.filePath, modelMatch = model.modelMatch)
                 ?: SyncEntry(id = newId(), name = model.name, folder = "", sdkFile = model.filePath, modelMatch = model.modelMatch)
             claimed[entry.id] = entry to model
@@ -708,7 +790,7 @@ internal class DefaultModelRepository(
         old.entries.filter { it.id !in claimed }.forEach { shadowDir(it.id).deleteRecursively() }
 
         // 5. The current model and the pending device write.
-        val currentFile = radio.getCurrentModel()?.filePath
+        val currentFile = radio.getCurrentModel(old.entry(old.currentId)?.sdkFile)?.filePath
         val currentId = claimed.values.firstOrNull { it.second.filePath == currentFile }?.first?.id
             ?: old.currentId?.takeIf { it in claimed }
         var inSync = old.deviceInSync
@@ -723,6 +805,19 @@ internal class DefaultModelRepository(
                     // The SDK's file was put right from the library; the working config must follow.
                     if (!radio.loadModelFile(pendingModel.second.filePath)) {
                         scratch.problems += "Cannot load '${pendingModel.first.name}' after repairing its file"
+                    } else {
+                        val repairedText = exportSdkFile(pendingModel.second.filePath)?.let { file ->
+                            try {
+                                file.readText(Charsets.UTF_8)
+                            } finally {
+                                file.delete()
+                            }
+                        }
+                        val problem = repairedText?.let { verifyLoaded(it) }
+                            ?: if (repairedText == null) "the repaired file cannot be read back" else null
+                        if (problem != null) {
+                            scratch.problems += "'${pendingModel.first.name}' did not load completely after the repair ($problem); nothing is written to the radio"
+                        }
                     }
                     pendingEpoch = readTracker.epoch()
                 }
@@ -758,6 +853,83 @@ internal class DefaultModelRepository(
             ),
         )
     }
+
+    /**
+     * Gives an SDK model of a fresh SDK directory its library entry.
+     *
+     * The model is compared with the library's folders (configuration only, see [ModelContent]).
+     * On a match the SDK file is linked to that folder, takes over the library name and the folder
+     * is not imported a second time. Without a match a new entry is made, called "Imported from
+     * radio <date>" when the SDK gave it one of its generated "Model-<number>" names.
+     *
+     * @param claimedIds entries already claimed in this reconcile run
+     * @param adoptedFolders folders already linked to an SDK model in this run (updated here)
+     */
+    private suspend fun adoptFreshSdkModel(
+        model: ModelInfo,
+        modelsDir: File,
+        old: SyncIndex,
+        claimedIds: Set<String>,
+        adoptedFolders: MutableSet<String>,
+    ): Pair<SyncEntry, ModelInfo> {
+        val folder = matchLibraryFolder(model, modelsDir, old, adoptedFolders)
+        if (folder != null) {
+            adoptedFolders += ModelNames.key(folder.name)
+            val lost = old.entries.firstOrNull { it.id !in claimedIds && it.folder.equals(folder.name, ignoreCase = true) }
+            val info = enforceName(model.filePath, folder.name) ?: model
+            // Stamped with the folder's current files: the SDK's file differs from the reference copy only
+            // by its stamps, which must not be reported as an external modification.
+            val entry = stamp(
+                (lost ?: SyncEntry(id = newId(), name = folder.name, folder = folder.name, sdkFile = info.filePath))
+                    .copy(name = folder.name, folder = folder.name, sdkFile = info.filePath, modelMatch = info.modelMatch),
+                folder,
+            )
+            return entry to info
+        }
+        val generated = GENERATED_SDK_NAME.matches(model.name)
+        val name = if (generated) {
+            val taken = old.entries.flatMap { listOf(it.name, it.folder) } + modelsDir.list().orEmpty()
+            ModelNames.unique(ModelNames.sanitize(importedModelName(importedDate(wallClock()))), taken)
+        } else {
+            model.name
+        }
+        val info = if (name != model.name) enforceName(model.filePath, name) ?: model else model
+        return SyncEntry(id = newId(), name = info.name, folder = "", sdkFile = info.filePath, modelMatch = info.modelMatch) to info
+    }
+
+    /**
+     * The library folder that holds the model of [model]'s SDK file, or null. Folders of earlier
+     * entries come first, then those with the most user data (snapshots, picture, extras), then
+     * by name; so of several identical copies the original is preferred.
+     */
+    private suspend fun matchLibraryFolder(model: ModelInfo, modelsDir: File, old: SyncIndex, taken: Set<String>): File? {
+        val export = exportSdkFile(model.filePath) ?: return null
+        try {
+            val wanted = ModelContent.fingerprint(export) ?: return null
+            return modelsDir.listFiles().orEmpty()
+                .filter { dir ->
+                    dir.isDirectory && !dir.name.startsWith('.') && ModelNames.key(dir.name) !in taken &&
+                        old.ignoredFolders.none { it.equals(dir.name, ignoreCase = true) } &&
+                        ModelContent.fingerprint(File(dir, SnapshotStore.MODEL_FILE)) == wanted
+                }
+                .sortedWith(
+                    compareByDescending<File> { dir -> old.entries.any { it.folder.equals(dir.name, ignoreCase = true) } }
+                        .thenByDescending(::userDataScore)
+                        .thenBy { it.name.lowercase() },
+                )
+                .firstOrNull()
+        } finally {
+            export.delete()
+        }
+    }
+
+    private fun userDataScore(folder: File): Int =
+        (if (File(folder, SnapshotStore.DIR_NAME).isDirectory) 4 else 0) +
+            (if (File(folder, MODEL_PICTURE_FILE_NAME).isFile) 2 else 0) +
+            (if (ExtrasStore.file(folder).isFile) 1 else 0)
+
+    private fun importedDate(timeMs: Long): String =
+        Instant.ofEpochMilli(timeMs).atZone(ZoneId.systemDefault()).toLocalDate().toString()
 
     /** Synchronises one SDK model with its library folder; returns the entry with fresh stamps. */
     private suspend fun syncPair(entry: SyncEntry, info: ModelInfo, modelsDir: File, pendingId: String?, scratch: Scratch): SyncEntry {
@@ -881,11 +1053,14 @@ internal class DefaultModelRepository(
             return failure(DataError.IO, "safety snapshot failed: ${e.message.orEmpty()}")
         }
         val isCurrent = entry.id == index.currentId
+        // Read the radio's values before the current model's file is replaced.
+        val wide = currentRadioWide()
         if (isCurrent) markPending(entry.id)
         if (!radio.importModel(File(folder, SnapshotStore.MODEL_FILE).absolutePath, info.filePath)) {
             return failure(DataError.RADIO_FAILED, "rcImportModelCfg failed")
         }
         val newInfo = enforceName(info.filePath, entry.name) ?: info
+        wide?.let { patchSdkFileLocked(entry, newInfo, patchTo(it)) }
         var updated = entry.copy(sdkFile = newInfo.filePath, modelMatch = newInfo.modelMatch)
         try {
             writeModelFileFromSdk(newInfo, folder)
@@ -999,6 +1174,18 @@ internal class DefaultModelRepository(
         val entry = index.entry(modelId) ?: return failure(DataError.NOT_FOUND, modelId)
         if (!radioReady()) return notReady()
         val info = sdkModel(entry) ?: return failure(DataError.RADIO_FAILED, "unknown SDK model")
+        // The SDK says "loaded" for a file without channel data and then holds an empty working
+        // config (assumption r11): refuse such a file before the SDK sees it, and keep its text to
+        // compare the working config with after the load.
+        val fileText = readSdkFileText(info.filePath)
+            ?: return failure(DataError.RADIO_FAILED, "cannot read the model file of '${entry.name}' to check it")
+        ModelFileCheck.fileProblem(fileText)?.let {
+            return failure(DataError.CONFIG_INCOMPLETE, "'${entry.name}' is not loaded: $it")
+        }
+        // Stick mode, RF module and alarm voltage belong to the radio, not to the model: bring the
+        // model to the radio's values before the radio sees it. Read them first, while the current
+        // model is still loaded. Reloading the current model needs nothing (it is the source).
+        if (entry.id != index.currentId) currentRadioWide()?.let { harmonizeLocked(entry, info, it) }
         val before = index
         val epochBefore = pendingEpoch
         // Persist the pending state before the SDK is touched: if the app dies in between, the
@@ -1011,11 +1198,93 @@ internal class DefaultModelRepository(
             saveIndex()
             return failure(DataError.RADIO_FAILED, "rcLoadModelFile failed")
         }
+        verifyLoaded(fileText)?.let { problem ->
+            return abandonLoadLocked(before.entry(before.currentId), before, epochBefore, info, problem)
+        }
         index = index.copy(currentId = entry.id)
         loadCurrentExtras(force = true)
         saveIndex()
         publish()
         return entryResult(entry.id)
+    }
+
+    /** The text of the SDK model file [sdkFile] (read through `rcExportModelCfg`), or null. */
+    private suspend fun readSdkFileText(sdkFile: String): String? {
+        val export = exportSdkFile(sdkFile) ?: return null
+        return try {
+            readLimited(export)?.toString(Charsets.UTF_8)
+        } finally {
+            export.delete()
+        }
+    }
+
+    /**
+     * Why the SDK working config is not the model file [fileText] it was just loaded from, or null
+     * if it is. An empty or all-zero config is reported first (that is what `rcLoadModelFile` leaves
+     * for a file without channel data, assumption r11), then any difference in channel count, mix
+     * count and key fields. A file that is not in the SDK format (simulator) is only checked for
+     * being non-empty.
+     */
+    private suspend fun verifyLoaded(fileText: String): String? {
+        val working = radio.readWorkingConfig()
+        ModelFileCheck.workingProblem(working)?.let { return it }
+        val summary = ModelFileCheck.summarize(fileText) ?: return null
+        return ModelFileCheck.mismatch(summary, working)
+    }
+
+    /**
+     * Gets out of a load whose result did not pass [verifyLoaded]: the SDK working config is not
+     * trustworthy and must never be written to the radio.
+     *
+     * The SDK does not answer a device read between a load and the write that follows it (the read
+     * times out, observed on the AX12), so the way back is the documented one: load the
+     * [previous] model's file again (it was written from the device and is checked against its own
+     * text here). Only when there is no other file to go back to (the file just loaded is the
+     * current model's own) a device read is tried, with a short timeout. Always returns the failure
+     * to report.
+     *
+     * The library stays in the "device not confirmed" state of [previous] unless the device read
+     * worked: the SDK still has a load outstanding, the UI offers "Write now" (which writes the
+     * verified previous configuration, the radio-level guard refuses an empty one) and a restart
+     * of the app reads the device. Nothing of the failed load is ever sent to the radio.
+     */
+    private suspend fun abandonLoadLocked(
+        previous: SyncEntry?,
+        before: SyncIndex,
+        epochBefore: Long,
+        loaded: ModelInfo,
+        problem: String,
+    ): DataResult.Failure {
+        val previousInfo = previous?.let { sdkModel(it) }
+        var deviceRead: TaskResult? = null
+        val outcome = if (previousInfo != null && previousInfo.filePath != loaded.filePath) {
+            val previousText = readSdkFileText(previousInfo.filePath)
+            val reloaded = radio.loadModelFile(previousInfo.filePath)
+            when {
+                !reloaded -> "the previous model could not be loaded again"
+                previousText == null -> "the previous model was loaded again but could not be checked"
+                else -> verifyLoaded(previousText)?.let { "the previous model did not load completely either ($it)" }
+                    ?: "the previous model was loaded again"
+            }
+        } else {
+            deviceRead = radio.readConfigFromDevice(ABANDON_READ_TIMEOUT)
+            "device read: $deviceRead"
+        }
+        val inSync = deviceRead?.isSuccess == true
+        index = index.copy(
+            currentId = before.currentId,
+            deviceInSync = inSync,
+            pendingModelId = if (inSync) null else before.currentId,
+        )
+        pendingEpoch = if (inSync) readTracker.epoch() else epochBefore
+        _deviceInSync.value = inSync
+        saveIndex()
+        loadCurrentExtras(force = true)
+        publish()
+        return failure(
+            DataError.CONFIG_INCOMPLETE,
+            "'${loaded.name}' did not load completely ($problem); nothing was written; $outcome",
+        )
     }
 
     private fun updateCurrentExtrasLocked(transform: (ModelExtras) -> ModelExtras): ModelExtras {
@@ -1130,6 +1399,106 @@ internal class DefaultModelRepository(
         return entryResult(entry.id)
     }
 
+    // -- Radio-wide settings (internals) --------------------------------------------------------
+
+    /** Result of [patchSdkFileLocked]. */
+    private sealed interface Patched {
+        data object Changed : Patched
+        data object Unchanged : Patched
+        data class Failed(val detail: String) : Patched
+    }
+
+    /**
+     * The radio-wide values the radio has **right now** (read through the current model file by
+     * the radio backend), or null when the radio is not ready or has no trustworthy values. Must be
+     * read before the current model's file is replaced or another model is loaded.
+     */
+    private suspend fun currentRadioWide(): SystemConfig? {
+        if (!radioReady()) return null
+        val system = radio.getSystemConfig() ?: return null
+        return system.takeIf { SystemConfigValidity.problem(it) == null }
+    }
+
+    /**
+     * The patch that gives a model file with the given fields the radio-wide values of [wide].
+     * Fields are compared as mapped values, so an RF code the app only keeps verbatim (255) is not
+     * rewritten.
+     */
+    private fun patchTo(wide: SystemConfig): (RawSystemFields) -> RadioWidePatch = { fields ->
+        RadioWidePatch(
+            stickMode = wide.stickMode.sdk.takeIf { StickMode.fromSdk(fields.stickMode) != wide.stickMode },
+            rfModuleMode = wide.rfModuleMode.sdk.takeIf { RfModuleMode.fromSdk(fields.rfModuleMode) != wide.rfModuleMode },
+            alarmVoltageDeciVolt = wide.alarmVoltageDeciVolt.takeIf { it != fields.alarmVoltageDeciVolt },
+        )
+    }
+
+    /**
+     * Rewrites the SDK file of [info] with the radio-wide fields chosen by [patchFor]: export,
+     * patch the JSON text, `rcImportModelCfg` back. Nothing is written when the file already has
+     * the values. The model must not be the one the radio is running (its file is the radio's).
+     */
+    private suspend fun patchSdkFileLocked(entry: SyncEntry, info: ModelInfo, patchFor: (RawSystemFields) -> RadioWidePatch): Patched {
+        val export = exportSdkFile(info.filePath) ?: return Patched.Failed("cannot export the SDK file")
+        val text = try {
+            export.readText(Charsets.UTF_8)
+        } catch (e: IOException) {
+            return Patched.Failed("cannot read the exported file: ${e.message.orEmpty()}")
+        } finally {
+            export.delete()
+        }
+        val fields = ModelConfigFile.readSystem(text) ?: return Patched.Failed("the SDK file has no system fields")
+        val patch = patchFor(fields)
+        if (patch.isEmpty) return Patched.Unchanged
+        val patched = ModelConfigFile.patch(text, patch) ?: return Patched.Failed("the radio-wide values cannot be written into the file")
+        val temp = try {
+            newTempFile("radiowide")
+        } catch (e: IOException) {
+            return Patched.Failed("no temporary file: ${e.message.orEmpty()}")
+        }
+        try {
+            temp.writeText(patched, Charsets.UTF_8)
+            if (!radio.importModel(temp.absolutePath, info.filePath)) return Patched.Failed("rcImportModelCfg failed")
+        } catch (e: IOException) {
+            return Patched.Failed(e.message.orEmpty())
+        } finally {
+            temp.delete()
+        }
+        enforceName(info.filePath, entry.name)
+        return Patched.Changed
+    }
+
+    /**
+     * Refreshes the library reference copy of [entry] from its (just changed) SDK file, unless the
+     * folder was modified outside the app: that is the user's decision (`externalChanges`).
+     */
+    private suspend fun syncFolderFromSdk(entry: SyncEntry, info: ModelInfo) {
+        val folder = folderOf(entry)?.takeIf { it.isDirectory } ?: return
+        val known = index.entry(entry.id) ?: entry
+        val modelFile = File(folder, SnapshotStore.MODEL_FILE)
+        if (known.modelHash.isNotEmpty() && FileOps.sha256(modelFile) != known.modelHash) return
+        runCatching {
+            if (writeModelFileFromSdk(info, folder) != null) adopt(stamp(known, folder), info)
+        }
+    }
+
+    /**
+     * Applies the radio-wide values of [wide] to the model [entry] before it is loaded: its SDK
+     * file and its library copy. A failure is not fatal; the model is loaded as it is.
+     */
+    private suspend fun harmonizeLocked(entry: SyncEntry, info: ModelInfo, wide: SystemConfig) {
+        if (patchSdkFileLocked(entry, info, patchTo(wide)) == Patched.Changed) syncFolderFromSdk(entry, info)
+    }
+
+    /** [model] (the text of a model file) with the radio-wide values of [wide]; unchanged if that is not possible. */
+    private fun harmonizedModelBytes(model: ByteArray, wide: SystemConfig?): ByteArray {
+        if (wide == null) return model
+        val text = model.toString(Charsets.UTF_8)
+        val fields = ModelConfigFile.readSystem(text) ?: return model
+        val patch = patchTo(wide)(fields)
+        if (patch.isEmpty) return model
+        return ModelConfigFile.patch(text, patch)?.toByteArray(Charsets.UTF_8) ?: model
+    }
+
     // -- SDK access -----------------------------------------------------------------------------
 
     private fun radioReady(): Boolean = radio.connection.value.isReady
@@ -1166,6 +1535,8 @@ internal class DefaultModelRepository(
     private suspend fun writeModelFileFromSdk(info: ModelInfo, folder: File): File? {
         val export = exportSdkFile(info.filePath) ?: return null
         try {
+            // An incomplete SDK file (assumption r11) must not overwrite the library's copy.
+            if (ModelArchive.modelFileProblem(readLimited(export) ?: ByteArray(0)) != null) return null
             val target = File(folder, SnapshotStore.MODEL_FILE)
             FileOps.copyFile(export, target)
             return target
@@ -1183,7 +1554,7 @@ internal class DefaultModelRepository(
      * `rcSaveCurrentCfgToModel` and the import repeated on top of it.
      */
     private suspend fun importIntoSdk(source: File, name: String): ModelInfo? {
-        val target = radio.createModelInfo()?.takeIf { it.filePath.isNotEmpty() } ?: return null
+        val target = newSdkTarget() ?: return null
         var imported = radio.importModel(source.absolutePath, target.filePath)
         var found = findSdkModel(target.filePath)
         if (!imported || found == null) {
@@ -1196,6 +1567,23 @@ internal class DefaultModelRepository(
             }
         }
         return enforceName(found.filePath, name) ?: found
+    }
+
+    /**
+     * A target path for a new SDK model (`rcCreateModelCfg`) that no SDK model uses yet.
+     *
+     * The SDK names its model files after the current time in **seconds**, so two models created
+     * within the same second get the same path and the second silently overwrites the first
+     * (observed on the radio: several library models ended up on one SDK file). The call is
+     * repeated after the clock has moved on until the path is free.
+     */
+    private suspend fun newSdkTarget(): ModelInfo? {
+        repeat(NEW_TARGET_ATTEMPTS) {
+            val target = radio.createModelInfo()?.takeIf { it.filePath.isNotEmpty() } ?: return null
+            if (findSdkModel(target.filePath) == null) return target
+            delay(NEW_TARGET_WAIT_MS)
+        }
+        return null
     }
 
     /** Makes sure the SDK model stored in [filePath] is called [name] (an import brings its own name along). */
@@ -1252,7 +1640,7 @@ internal class DefaultModelRepository(
         val model = File(folder, SnapshotStore.MODEL_FILE)
         if (!model.isFile) return DataError.NOT_FOUND to "it has no ${SnapshotStore.MODEL_FILE}"
         val bytes = readLimited(model) ?: return DataError.TOO_LARGE to "${SnapshotStore.MODEL_FILE} is too large"
-        if (!ModelArchive.isJsonObject(bytes)) return DataError.INVALID_FILE to "${SnapshotStore.MODEL_FILE} is not a JSON object"
+        ModelArchive.modelFileProblem(bytes)?.let { return DataError.INVALID_FILE to "${SnapshotStore.MODEL_FILE}: $it" }
         val extras = ExtrasStore.load(folder, quarantine = false)
         if (extras is ExtrasLoad.Loaded && extras.newerThanApp) return DataError.SCHEMA_TOO_NEW to "its extras were written by a newer app version"
         return null
@@ -1454,8 +1842,16 @@ internal class DefaultModelRepository(
         private const val EXPORT_WAIT_STEPS = 40
         private const val EXPORT_WAIT_STEP_MS = 25L
         private const val EMPTY_LIST_RETRY_MS = 300L
+        private const val NEW_TARGET_ATTEMPTS = 4
+
+        /** How long [abandonLoadLocked] waits for a device read (the SDK may not answer while a load is outstanding). */
+        private val ABANDON_READ_TIMEOUT = 5.seconds
+        private const val NEW_TARGET_WAIT_MS = 1_100L
 
         /** `modelMatch` is an unsigned 32-bit field in the SDK. */
+        /** The names the SDK gives a model it creates itself ("Model-233"). */
+        private val GENERATED_SDK_NAME = Regex("Model-\\d+")
+
         private const val MAX_MODEL_MATCH = 0xFFFF_FFFFL
 
         /** Extras of a model that has no `extras.json` (a stock-app import). */

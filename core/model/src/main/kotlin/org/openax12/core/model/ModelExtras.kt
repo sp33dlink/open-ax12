@@ -22,16 +22,25 @@ enum class HomeCenterCard {
 /**
  * Per-model home screen preferences.
  *
- * @property centerCard remembered state of the flip card (picture or pinned widgets)
- * @property inputPage last selected page of the input / switch area (0-based)
+ * @property centerCard the face of the flip card the user chose last; null = no choice yet, see
+ *   [resolvedCenterCard]
  * @property channelPage last selected page of the channel list (0 = CH01–08, 1 = CH09–16)
  */
 @Serializable
 data class HomePreferences(
-    val centerCard: HomeCenterCard = HomeCenterCard.PICTURE,
-    val inputPage: Int = 0,
+    val centerCard: HomeCenterCard? = null,
     val channelPage: Int = 0,
-)
+) {
+    /**
+     * The face of the centre card to show. Without pinned widgets it is always the picture (there
+     * is nothing to flip to). With pinned widgets it is the remembered choice, and the pinned
+     * widgets until the user has chosen: widgets first.
+     */
+    fun resolvedCenterCard(hasPinnedWidgets: Boolean): HomeCenterCard = when {
+        !hasPinnedWidgets -> HomeCenterCard.PICTURE
+        else -> centerCard ?: HomeCenterCard.WIDGETS
+    }
+}
 
 /**
  * A managed mix line: `(chIdx, srcIdx)` plus the generator that created it.
@@ -350,7 +359,7 @@ data class ModelExtras(
 
     companion object {
         /** Schema version written by this app version. Bump together with a migration in [ModelExtrasCodec]. */
-        const val CURRENT_SCHEMA_VERSION: Int = 1
+        const val CURRENT_SCHEMA_VERSION: Int = 2
 
         /** File name inside a model folder. */
         const val FILE_NAME: String = "extras.json"
@@ -435,6 +444,16 @@ object ModelExtrasCodec {
         if (version == 0) {
             // Version 0 = a file without schemaVersion; structurally identical to version 1.
             version = 1
+        }
+        if (version == 1) {
+            // 1 -> 2: `home.centerCard` became optional (null = widgets when some are pinned).
+            // Version 1 stored the default PICTURE for every model, so the stored value says
+            // nothing about a choice by the user; drop it and let the new default apply once.
+            val home = tree["home"] as? JsonObject
+            if (home != null && "centerCard" in home) {
+                tree = JsonObject(tree + ("home" to JsonObject(home - "centerCard")))
+            }
+            version = 2
         }
         // Future steps go here (see KDoc).
         if (version <= ModelExtras.CURRENT_SCHEMA_VERSION &&

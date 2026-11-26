@@ -12,19 +12,26 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.openax12.app.R
+import org.openax12.app.RadioConnector
+import org.openax12.app.StockApp
+import org.openax12.app.shouldShowOnboarding
+import org.openax12.app.showSlowConnectHint
 import org.openax12.core.designsystem.AxBottomBar
 import org.openax12.core.designsystem.AxDestination
 import org.openax12.core.designsystem.AxFlightModeChip
@@ -68,6 +75,8 @@ import org.openax12.feature.telemetry.telemetryEntries
  * touch lock.
  *
  * @param graph the application's service locator
+ * @param connector starts the radio connection (Retry buttons) and closes the stock app
+ * @param stockApp the stock RadioMaster app (installed? open its app info page)
  * @param window the activity window (brightness, keep-screen-on, screenshots)
  * @param shellActions activity-only actions offered to screens
  * @param pendingImport URI string of a shared / opened `.oax12` file that still has to be routed
@@ -77,6 +86,8 @@ import org.openax12.feature.telemetry.telemetryEntries
 @Composable
 internal fun Ax12Root(
     graph: AppGraph,
+    connector: RadioConnector,
+    stockApp: StockApp,
     window: Window,
     shellActions: ShellActions,
     pendingImport: String?,
@@ -94,11 +105,16 @@ internal fun Ax12Root(
                 Box(modifier = Modifier.fillMaxSize().trackTouches(touchLock)) {
                     StartupGate(
                         graph = graph,
+                        connector = connector,
+                        stockApp = stockApp,
                         window = window,
                         touchLock = touchLock,
                         pendingImport = pendingImport,
                         onImportHandled = onImportHandled,
                     )
+                }
+                if (shouldShowOnboarding(settings)) {
+                    Onboarding(graph, stockApp, statusBar = { ShellStatusBar(graph, title = stringResource(R.string.app_name), onTitleClick = null) })
                 }
                 TouchLockOverlay(
                     locked = touchLock.locked,
@@ -113,6 +129,36 @@ internal fun Ax12Root(
 }
 
 /**
+ * The first-start onboarding over the shell. The connection already runs (the service started it
+ * in `MainActivity.onCreate`) and the gate underneath keeps following it, so "Get started" lands
+ * on whatever the shell shows by then. The switches write the settings at once; finishing stores
+ * `onboardingDone`. Touches and Back do not reach the screen below.
+ */
+@Composable
+private fun Onboarding(graph: AppGraph, stockApp: StockApp, statusBar: @Composable () -> Unit) {
+    val settings by graph.settings.settings.collectAsStateWithLifecycle()
+    val startup by graph.startup.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    BackHandler {} // Back must not leave the onboarding
+    OnboardingContent(
+        stockInstalled = stockApp.isInstalled,
+        connecting = !startup.isRunning,
+        closeStockApp = settings.closeStockApp,
+        onCloseStockAppChange = { value -> scope.launch { graph.settings.update { it.copy(closeStockApp = value) } } },
+        startOnBoot = settings.startOnBoot,
+        onStartOnBootChange = { value -> scope.launch { graph.settings.update { it.copy(startOnBoot = value) } } },
+        onFinish = { scope.launch { graph.settings.update { it.copy(onboardingDone = true) } } },
+        modifier = Modifier.pointerInput(Unit) {
+            // Swallow every touch that no button took, so the shell below stays untouched.
+            awaitPointerEventScope {
+                while (true) awaitPointerEvent().changes.forEach { it.consume() }
+            }
+        },
+        statusBar = statusBar,
+    )
+}
+
+/**
  * Shows the loading or error screen until the radio is up, then the shell. The shell stays once it
  * was shown: a connection that breaks later raises a dialog over it instead of replacing the UI.
  * "Continue without radio" opens the shell on local data (model library, settings, help).
@@ -120,6 +166,8 @@ internal fun Ax12Root(
 @Composable
 private fun StartupGate(
     graph: AppGraph,
+    connector: RadioConnector,
+    stockApp: StockApp,
     window: Window,
     touchLock: TouchLockState,
     pendingImport: String?,
@@ -136,33 +184,71 @@ private fun StartupGate(
             dismissedFor = null
         }
     }
+    val recovering by connector.recovering.collectAsStateWithLifecycle()
+    val stockInstalled = stockApp.isInstalled
     val retry: () -> Unit = {
         dismissedFor = null
-        graph.scope.launch { graph.start() }
+        connector.connect()
     }
 
     if (startup.isRunning || everRunning || continueOffline) {
         Shell(graph, window, touchLock, pendingImport, onImportHandled)
         val failed = startup as? StartupState.RadioFailed
         if (failed != null && !continueOffline && dismissedFor != failed.reason) {
-            ConnectionLostDialog(reason = failed.reason, onRetry = retry, onDismiss = { dismissedFor = failed.reason })
+            ConnectionLostDialog(
+                reason = failed.reason,
+                onRetry = retry,
+                onDismiss = { dismissedFor = failed.reason },
+                stockInstalled = stockInstalled,
+            )
         }
     } else {
         AxScreen(
             statusBar = { ShellStatusBar(graph, title = stringResource(R.string.app_name), onTitleClick = null) },
         ) {
             when (val state = startup) {
-                is StartupState.RadioFailed -> StartupErrorContent(
-                    reason = state.reason,
-                    onRetry = retry,
-                    onContinue = { continueOffline = true },
-                )
-                StartupState.ConnectingRadio -> StartupLoadingContent(R.string.startup_connecting)
+                // During the automatic close-and-retry round the error is already being dealt with.
+                is StartupState.RadioFailed -> if (recovering) {
+                    StartupLoadingContent(R.string.startup_connecting)
+                } else {
+                    StartupErrorContent(
+                        reason = state.reason,
+                        onRetry = retry,
+                        onContinue = { continueOffline = true },
+                        stockInstalled = stockInstalled,
+                        onCloseStock = connector::closeStockAndReconnect,
+                        onOpenStockSettings = stockApp::openAppInfo,
+                    )
+                }
+                StartupState.ConnectingRadio -> ConnectingContent(connector, stockInstalled)
                 StartupState.LoadingLibrary -> StartupLoadingContent(R.string.startup_loading_library)
                 else -> StartupLoadingContent(R.string.startup_starting)
             }
         }
     }
+}
+
+/**
+ * "Connecting to the radio…". After [org.openax12.app.SLOW_CONNECT_HINT_AFTER_MS] without result a
+ * note and the "Close stock app" button appear (the timer restarts with every connection attempt).
+ */
+@Composable
+private fun ConnectingContent(connector: RadioConnector, stockInstalled: Boolean) {
+    val attempt by connector.attempt.collectAsStateWithLifecycle()
+    var elapsedMs by remember(attempt) { mutableLongStateOf(0L) }
+    LaunchedEffect(attempt, stockInstalled) {
+        if (!stockInstalled) return@LaunchedEffect
+        val start = System.nanoTime()
+        while (!showSlowConnectHint(elapsedMs, stockInstalled)) {
+            delay(1_000)
+            elapsedMs = (System.nanoTime() - start) / 1_000_000
+        }
+    }
+    StartupLoadingContent(
+        textRes = R.string.startup_connecting,
+        showStockHint = showSlowConnectHint(elapsedMs, stockInstalled),
+        onCloseStock = connector::closeStockAndReconnect,
+    )
 }
 
 /** The navigation shell: status bar, `NavDisplay` with all feature entries, bottom bar, guard and popups. */

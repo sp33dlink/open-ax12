@@ -80,7 +80,7 @@ internal class TestSession(private val radio: Radio) : ConfigSession {
     override suspend fun applyPlan(plan: MixPlan, expected: PlanDiff?, stage: ((ModelExtras) -> ModelExtras)?): SessionResult<PlanDiff> = unused()
     override suspend fun compileFlightModes(config: FlightModesConfig?): Pair<MixPlan, PlanDiff> = unused()
     override suspend fun compileWing(config: WingConfig?): Pair<MixPlan, PlanDiff> = unused()
-    override suspend fun updateSystemConfig(transform: (SystemConfig) -> SystemConfig): SessionResult<SystemConfig> = unused()
+    override suspend fun updateSystemConfig(rfOffConfirmed: Boolean, transform: (SystemConfig) -> SystemConfig): SessionResult<SystemConfig> = unused()
     override suspend fun resetToDefaults(): SessionResult<Unit> = unused()
     override suspend fun selectModel(modelId: String, discardChanges: Boolean): SessionResult<ModelEntry> = unused()
     override suspend fun createModel(name: String, blueprint: ModelBlueprint): SessionResult<ModelEntry> = unused()

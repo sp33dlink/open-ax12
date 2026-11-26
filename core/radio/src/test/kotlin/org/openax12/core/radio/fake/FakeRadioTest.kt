@@ -28,6 +28,7 @@ import org.openax12.core.model.DualRateSlot
 import org.openax12.core.model.ElrsItemType
 import org.openax12.core.model.FailsafeMode
 import org.openax12.core.model.MixMode
+import org.openax12.core.model.ModelFileCheck
 import org.openax12.core.model.NO_CURVE
 import org.openax12.core.model.RfModuleMode
 import org.openax12.core.model.Sensors
@@ -136,7 +137,7 @@ class FakeRadioTest {
         assertEquals("Ail", radio.getMix(0, 0)!!.sourceName)
         assertEquals(1, radio.getMix(0, 0)!!.mixCount)
         assertEquals(1, radio.getOutputChannels()[0].mixCount)
-        assertEquals(StickMode.MODE_2, config.system.stickMode)
+        assertEquals(StickMode.MODE_2, config.system!!.stickMode)
 
         val firmware = radio.getFirmwareInfo()!!
         assertFalse(firmware.isEmpty)
@@ -269,10 +270,10 @@ class FakeRadioTest {
         sim.setStick(SourceId.ELE, 400)
         sim.setPot(SourceId.slider(1), -30)
         sim.setSource(SourceId.SA, 80)
-        assertEquals(-100, sim.sourceValue(SourceId.SF))
+        assertEquals(SwitchPosition.UP.logic, sim.sourceValue(SourceId.SF))
         assertEquals(50, sim.sourceValue(SourceId.AIL))
         assertEquals(100, sim.sourceValue(SourceId.ELE))
-        assertEquals(100, sim.sourceValue(SourceId.SA))
+        assertEquals(SwitchPosition.UP.logic, sim.sourceValue(SourceId.SA))
         radio.advance(40)
         assertEquals(-30, radio.live.value.channel(5))
 
@@ -292,13 +293,14 @@ class FakeRadioTest {
         val line = radio.addMix(8, SourceId.SA)!!
         assertTrue(radio.setMix(line.copy(slowUpMs = 2000, slowDownMs = 2000)))
         radio.advance(40)
-        assertEquals(-100, radio.live.value.channel(8))
+        // SA rests up (+100); moving it down (-100) ramps the channel over the slow time.
+        assertEquals(100, radio.live.value.channel(8))
 
         sim.setSwitch(SourceId.SA, SwitchPosition.DOWN)
         radio.advance(1000)
         assertEquals(0, radio.live.value.channel(8))
         radio.advance(1000)
-        assertEquals(100, radio.live.value.channel(8))
+        assertEquals(-100, radio.live.value.channel(8))
     }
 
     // ---- setters ---------------------------------------------------------------------------
@@ -684,6 +686,33 @@ class FakeRadioTest {
         assertTrue(config.dualRates.none { it.isEnabled })
         assertTrue(radio.loadModelFile(radio.getCurrentModel()!!.filePath))
         assertEquals(4, radio.readWorkingConfig().mixes.size)
+    }
+
+    @Test
+    fun anIncompleteModelLoadIsNeverWrittenToTheDevice() = runTest {
+        val radio = radio()
+        val events = eventsOf(radio)
+        radio.start()
+        val current = radio.getCurrentModel()!!
+        val deviceMixes = radio.readWorkingConfig().mixes.size
+        assertTrue(deviceMixes > 0)
+
+        // The SDK says "loaded" but holds channels without limits and no mixes (assumption r11).
+        radio.simulator.injectFault(SimulatedFault.INCOMPLETE_MODEL_LOAD)
+        radio.advance(40)
+        assertTrue(radio.loadModelFile(current.filePath))
+        val loaded = radio.readWorkingConfig()
+        assertTrue(loaded.mixes.isEmpty())
+        assertNotNull(ModelFileCheck.workingProblem(loaded))
+        events.clear()
+
+        assertEquals(TaskResult.REFUSED, radio.saveConfigToDevice())
+        assertFalse(RadioEvent.ConfigWritten in events)
+
+        // The device still holds the real configuration.
+        assertEquals(TaskResult.COMPLETED, radio.readConfigFromDevice())
+        assertEquals(deviceMixes, radio.readWorkingConfig().mixes.size)
+        assertEquals(TaskResult.COMPLETED, radio.saveConfigToDevice())
     }
 
     // ---- timers through the radio ------------------------------------------------------------

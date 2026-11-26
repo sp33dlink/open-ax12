@@ -8,6 +8,7 @@ import org.openax12.core.model.ModelExtras
 import org.openax12.core.model.ModelType
 import org.openax12.core.model.SourceId
 import org.openax12.core.model.SourceKind
+import org.openax12.core.model.Sources
 import org.openax12.core.model.StickMode
 import org.openax12.core.model.TIMER_COUNT
 import org.openax12.core.model.WidgetConfig
@@ -24,17 +25,11 @@ internal const val CHANNELS_PER_PAGE: Int = 8
 /** Number of pages of the channel list. */
 internal const val CHANNEL_PAGES: Int = CHANNEL_COUNT / CHANNELS_PER_PAGE
 
-/** Switch pills per page of the input panel. */
-internal const val SWITCHES_PER_PAGE: Int = 6
+/** Switch pills of the input panel (SA-SF as in the stock app). */
+internal const val SWITCH_PILLS: Int = 6
 
-/** Arc gauges per page of the input panel. */
-internal const val KNOBS_PER_PAGE: Int = 2
-
-/** Logical-switch chips on the flight-mode page; further ones are summarised as "+n more". */
-internal const val LOGIC_CHIPS_PER_PAGE: Int = 10
-
-/** Upper bound of input pages so that the page selector always fits its column. */
-internal const val MAX_INPUT_PAGES: Int = 8
+/** Arc gauges of the input panel (S1 and S2 as in the stock app). */
+internal const val KNOB_GAUGES: Int = 2
 
 /** Longest source name drawn under a pill / inside a gauge; longer user names fall back to the default name. */
 private const val MAX_LABEL_LENGTH: Int = 4
@@ -75,46 +70,40 @@ internal enum class KnobRange {
 @Immutable
 internal data class KnobItem(val source: SourceId, val label: String, val range: KnobRange)
 
-/** A configured logical switch shown as a chip on the flight-mode page. */
+/**
+ * The right-hand input panel, one page like the stock app: up to [SWITCH_PILLS] switch pills above up
+ * to [KNOB_GAUGES] arc gauges and, when the radio has an SP input, its row of six buttons.
+ *
+ * Further enabled inputs (the other pots, counters, more switches) are not drawn here; they stay
+ * reachable in Model setup > Input check.
+ */
 @Immutable
-internal data class LogicSwitchItem(val index: Int, val label: String)
-
-/** One page of the right-hand input panel. */
-internal sealed interface HomePage {
-
-    /** Up to [SWITCHES_PER_PAGE] switch pills above up to [KNOBS_PER_PAGE] arc gauges. */
-    data class Controls(val switches: List<SwitchItem>, val knobs: List<KnobItem>) : HomePage
-
-    /**
-     * The active flight mode and the configured logical switches.
-     *
-     * @property flightModesUsed the model has flight modes
-     * @property logicSwitches the first [LOGIC_CHIPS_PER_PAGE] configured logical switches
-     * @property hiddenLogicSwitches how many further ones do not fit
-     */
-    data class Modes(
-        val flightModesUsed: Boolean,
-        val logicSwitches: List<LogicSwitchItem>,
-        val hiddenLogicSwitches: Int,
-    ) : HomePage
-}
+internal data class InputPanelState(
+    val switches: List<SwitchItem> = emptyList(),
+    val knobs: List<KnobItem> = emptyList(),
+    /** The SP input is enabled: draw its button row. */
+    val showSpButtons: Boolean = false,
+)
 
 /** Everything the stateless home screen needs apart from live values. */
 @Immutable
 internal data class HomeUiState(
-    val modelName: String = "",
     val picturePath: String? = null,
     val pictureVersion: Long = 0,
     val modelType: ModelType = ModelType.GLIDER,
+    /** Face of the centre card to show, already resolved ([HomePreferences.resolvedCenterCard]). */
     val centerCard: HomeCenterCard = HomeCenterCard.PICTURE,
     val pinnedWidgets: List<WidgetConfig> = emptyList(),
     val stickMode: StickMode = StickMode.MODE_2,
     val channels: List<ChannelItem> = List(CHANNEL_COUNT) { ChannelItem(it, emphasized = false) },
     val channelPage: Int = 0,
     val timers: List<TimerItem> = List(ALWAYS_SHOWN_TIMERS) { TimerItem(it) },
-    val pages: List<HomePage> = emptyList(),
-    val pageIndex: Int = 0,
+    val inputs: InputPanelState = InputPanelState(),
 ) {
+    /** True when the model has pinned widgets; only then the centre card can show them and flip. */
+    val hasPinnedWidgets: Boolean
+        get() = pinnedWidgets.isNotEmpty()
+
     /** The channels of the page shown. */
     val visibleChannels: List<ChannelItem>
         get() = channels.drop(channelPage * CHANNELS_PER_PAGE).take(CHANNELS_PER_PAGE)
@@ -122,21 +111,30 @@ internal data class HomeUiState(
 
 /** Builds the state of the home screen. Pure: the same inputs always give the same state. */
 internal fun buildHomeState(model: ModelEntry?, extras: ModelExtras, config: WorkingConfig): HomeUiState {
-    val pages = planPages(config, extras)
+    val pinned = extras.telemetry.pinnedWidgets
     return HomeUiState(
-        modelName = model?.name.orEmpty(),
         picturePath = model?.picturePath,
         pictureVersion = model?.pictureVersion ?: 0,
         modelType = extras.modelType,
-        centerCard = extras.home.centerCard,
-        pinnedWidgets = extras.telemetry.pinnedWidgets,
-        stickMode = config.system.stickMode,
+        centerCard = extras.home.resolvedCenterCard(pinned.isNotEmpty()),
+        pinnedWidgets = pinned,
+        stickMode = config.system?.stickMode ?: StickMode.MODE_2,
         channels = List(CHANNEL_COUNT) { ChannelItem(it, emphasized = (config.channel(it)?.mixCount ?: 0) > 0) },
         channelPage = extras.home.channelPage.coerceIn(0, CHANNEL_PAGES - 1),
         timers = timerItems(config),
-        pages = pages,
-        pageIndex = extras.home.inputPage.coerceIn(0, (pages.size - 1).coerceAtLeast(0)),
+        inputs = planInputs(config),
     )
+}
+
+/**
+ * The extras after a tap on the flip button: the other face of the centre card is remembered for
+ * this model. Models without pinned widgets are returned unchanged (nothing to flip to).
+ */
+internal fun toggleCenterCard(extras: ModelExtras): ModelExtras {
+    if (extras.telemetry.pinnedWidgets.isEmpty()) return extras
+    val shown = extras.home.resolvedCenterCard(hasPinnedWidgets = true)
+    val other = if (shown == HomeCenterCard.PICTURE) HomeCenterCard.WIDGETS else HomeCenterCard.PICTURE
+    return extras.copy(home = extras.home.copy(centerCard = other))
 }
 
 /** The timers to list: T1 and T2 always, T3 when it has a switch, a start time or a mode. */
@@ -154,51 +152,29 @@ private val FallbackSwitches: List<SourceId> = ('A'..'F').map { SourceId.switch(
 private val FallbackKnobs: List<SourceId> = listOf(SourceId.slider(1), SourceId.slider(2))
 
 /**
- * Plans the pages of the input panel (SPEC section 2).
- *
- * Enabled switches (SA-SP) are listed [SWITCHES_PER_PAGE] per page and enabled knobs
- * [KNOBS_PER_PAGE] per page, sliders first, then pots, then counters; page n shows the n-th chunk
- * of both, so the stock layout (SA-SF above S1 and S2) is page 1. A final page shows the flight
- * mode and the logical switches when the model uses either. At most [MAX_INPUT_PAGES] pages.
+ * Plans the input panel (SPEC section 2). Only inputs the radio reports as present are listed:
+ * the first [SWITCH_PILLS] enabled switches (SA-SF on the AX12; SP is the button row, not a pill),
+ * the first [KNOB_GAUGES] enabled knobs (sliders first, then pots, then counters) and the SP button
+ * row when SP is enabled. Without a source list (radio not ready) the stock layout is shown, without
+ * the SP row.
  */
-internal fun planPages(config: WorkingConfig, extras: ModelExtras): List<HomePage> {
-    val switchIds: List<SourceId>
-    val knobIds: List<SourceId>
+internal fun planInputs(config: WorkingConfig): InputPanelState {
     if (config.sources.isEmpty()) {
-        switchIds = FallbackSwitches
-        knobIds = FallbackKnobs
-    } else {
-        val enabled = config.sources.filter { it.enabled }.map { it.id }
-        switchIds = enabled.filter { it.kind == SourceKind.SWITCH }
-        knobIds = enabled.filter { it.kind == SourceKind.SLIDER } +
-            enabled.filter { it.kind == SourceKind.POT } +
-            enabled.filter { it.kind == SourceKind.COUNTER }
-    }
-    val switches = switchIds.map { SwitchItem(it, sourceLabel(config, it)) }.chunked(SWITCHES_PER_PAGE)
-    val knobs = knobIds.map { KnobItem(it, sourceLabel(config, it), knobRange(it)) }.chunked(KNOBS_PER_PAGE)
-
-    val pages = ArrayList<HomePage>()
-    for (i in 0 until maxOf(switches.size, knobs.size)) {
-        pages += HomePage.Controls(switches.getOrElse(i) { emptyList() }, knobs.getOrElse(i) { emptyList() })
-    }
-
-    val logic = extras.logicalSwitches.filter { it.isUsed }.sortedBy { it.index }
-    if (extras.flightModes.isActive || logic.isNotEmpty()) {
-        pages += HomePage.Modes(
-            flightModesUsed = extras.flightModes.isActive,
-            logicSwitches = logic.take(LOGIC_CHIPS_PER_PAGE).map { LogicSwitchItem(it.index, it.name.takeIf { n -> n.length in 1..MAX_LABEL_LENGTH } ?: it.label) },
-            hiddenLogicSwitches = (logic.size - LOGIC_CHIPS_PER_PAGE).coerceAtLeast(0),
+        return InputPanelState(
+            switches = FallbackSwitches.map { SwitchItem(it, sourceLabel(config, it)) },
+            knobs = FallbackKnobs.map { KnobItem(it, sourceLabel(config, it), knobRange(it)) },
         )
     }
-    // The flight-mode page is the last one; keep it when the controls have to be cut.
-    if (pages.size > MAX_INPUT_PAGES) {
-        val last = pages.last()
-        val keep = if (last is HomePage.Modes) MAX_INPUT_PAGES - 1 else MAX_INPUT_PAGES
-        val cut = pages.take(keep).toMutableList()
-        if (last is HomePage.Modes) cut += last
-        return cut
-    }
-    return pages
+    val enabled = config.sources.filter { it.enabled }.map { it.id }
+    val switchIds = enabled.filter { it.kind == SourceKind.SWITCH && it.index != Sources.SP }
+    val knobIds = enabled.filter { it.kind == SourceKind.SLIDER } +
+        enabled.filter { it.kind == SourceKind.POT } +
+        enabled.filter { it.kind == SourceKind.COUNTER }
+    return InputPanelState(
+        switches = switchIds.take(SWITCH_PILLS).map { SwitchItem(it, sourceLabel(config, it)) },
+        knobs = knobIds.take(KNOB_GAUGES).map { KnobItem(it, sourceLabel(config, it), knobRange(it)) },
+        showSpButtons = enabled.any { it.index == Sources.SP },
+    )
 }
 
 /** Pots and counters are drawn centred, sliders from the left end (assumption in docs/ASSUMPTIONS.md). */

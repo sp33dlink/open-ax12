@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Centre card -->
-    <string name="home_no_model">No model</string>
-    <string name="home_cd_open_models">Open models</string>
     <string name="home_cd_show_widgets">Show telemetry widgets</string>
     <string name="home_cd_show_picture">Show model picture</string>
-    <string name="home_widgets_hint">Tap to flip back</string>
+    <string name="home_pin_widgets">Pin telemetry widgets</string>
 
     <!-- Timers -->
     <string name="home_timer_label">T%1$d</string>
@@ -17,10 +15,5 @@
     <string name="home_cd_channel_pager">Channels %1$d to %2$d. Tap to show the other channels.</string>
 
     <!-- Inputs panel -->
-    <string name="home_cd_input_pages">Input pages</string>
-    <string name="home_flight_mode">Flight mode</string>
-    <string name="home_flight_mode_none">Flight modes not used</string>
-    <string name="home_logic_switches">Logical switches</string>
-    <string name="home_logic_switches_none">No logical switches</string>
-    <string name="home_logic_switches_more">+%1$d more</string>
+    <string name="home_cd_sp_button_active">SP button %1$d active</string>
 </resources>

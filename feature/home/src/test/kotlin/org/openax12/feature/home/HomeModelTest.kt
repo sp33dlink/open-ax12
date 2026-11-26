@@ -4,12 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.openax12.core.data.ModelEntry
-import org.openax12.core.model.FlightModeConfig
-import org.openax12.core.model.FlightModesConfig
 import org.openax12.core.model.HomeCenterCard
 import org.openax12.core.model.HomePreferences
-import org.openax12.core.model.LogicalFunction
-import org.openax12.core.model.LogicalSwitch
 import org.openax12.core.model.ModelExtras
 import org.openax12.core.model.OutputChannelConfig
 import org.openax12.core.model.SourceId
@@ -35,38 +31,53 @@ class HomeModelTest {
             system = SystemConfig(stickMode = stick),
         )
 
-    private fun controls(page: HomePage?) = page as HomePage.Controls
+    private val AX12 = setOf(Sources.SA, Sources.SB, Sources.SC, Sources.SD, Sources.SE, Sources.SF, Sources.S1, Sources.S2, Sources.SP)
 
     @Test
-    fun `without a source list the first page is the stock layout`() {
-        val pages = planPages(org.openax12.core.model.WorkingConfig.EMPTY, ModelExtras())
-        assertEquals(1, pages.size)
-        val page = controls(pages[0])
-        assertEquals(listOf("SA", "SB", "SC", "SD", "SE", "SF"), page.switches.map { it.label })
-        assertEquals(listOf("S1", "S2"), page.knobs.map { it.label })
+    fun `without a source list the panel is the stock layout without the SP row`() {
+        val panel = planInputs(org.openax12.core.model.WorkingConfig.EMPTY)
+        assertEquals(listOf("SA", "SB", "SC", "SD", "SE", "SF"), panel.switches.map { it.label })
+        assertEquals(listOf("S1", "S2"), panel.knobs.map { it.label })
+        assertFalse(panel.showSpButtons)
     }
 
     @Test
-    fun `switches and knobs are chunked per page`() {
-        val enabled = (Sources.SA..Sources.SH).toSet() + setOf(Sources.S1, Sources.S2, Sources.P1, Sources.P2, Sources.CNT1)
-        val pages = planPages(config(enabled), ModelExtras())
-        // 8 switches -> 2 pages, 5 knobs -> 3 pages.
-        assertEquals(3, pages.size)
-        assertEquals(6, controls(pages[0]).switches.size)
-        assertEquals(2, controls(pages[1]).switches.size)
-        assertTrue(controls(pages[2]).switches.isEmpty())
-        // Sliders first, then pots, then counters.
-        assertEquals(listOf("S1", "S2"), controls(pages[0]).knobs.map { it.label })
-        assertEquals(listOf("P1", "P2"), controls(pages[1]).knobs.map { it.label })
-        assertEquals(listOf("CNT1"), controls(pages[2]).knobs.map { it.label })
+    fun `an AX12 shows SA-SF, S1, S2 and the SP row on one page`() {
+        val panel = planInputs(config(AX12))
+        assertEquals(listOf("SA", "SB", "SC", "SD", "SE", "SF"), panel.switches.map { it.label })
+        assertEquals(listOf("S1", "S2"), panel.knobs.map { it.label })
+        assertTrue(panel.showSpButtons)
+    }
+
+    @Test
+    fun `the SP row is hidden when the radio reports SP as absent`() {
+        val panel = planInputs(config(AX12 - Sources.SP))
+        assertFalse(panel.showSpButtons)
+        assertEquals(6, panel.switches.size)
+    }
+
+    @Test
+    fun `SP is never drawn as a switch pill`() {
+        val panel = planInputs(config(setOf(Sources.SA, Sources.SP)))
+        assertEquals(listOf("SA"), panel.switches.map { it.label })
+        assertTrue(panel.showSpButtons)
     }
 
     @Test
     fun `disabled sources are skipped`() {
-        val pages = planPages(config(setOf(Sources.SA, Sources.SC, Sources.S2)), ModelExtras())
-        assertEquals(1, pages.size)
-        assertEquals(listOf("SA", "SC"), controls(pages[0]).switches.map { it.label })
-        assertEquals(listOf("S2"), controls(pages[0]).knobs.map { it.label })
+        val panel = planInputs(config(setOf(Sources.SA, Sources.SC, Sources.S2)))
+        assertEquals(listOf("SA", "SC"), panel.switches.map { it.label })
+        assertEquals(listOf("S2"), panel.knobs.map { it.label })
+    }
+
+    @Test
+    fun `the panel is capped at six pills and two gauges, sliders first`() {
+        val enabled = (Sources.SA..Sources.SH).toSet() + setOf(Sources.S1, Sources.S2, Sources.P1, Sources.P2, Sources.CNT1)
+        val panel = planInputs(config(enabled))
+        assertEquals(listOf("SA", "SB", "SC", "SD", "SE", "SF"), panel.switches.map { it.label })
+        assertEquals(listOf("S1", "S2"), panel.knobs.map { it.label })
+        // Without sliders the pots take their place.
+        assertEquals(listOf("P1", "P2"), planInputs(config(setOf(Sources.P1, Sources.P2, Sources.CNT1))).knobs.map { it.label })
     }
 
     @Test
@@ -82,47 +93,7 @@ class HomeModelTest {
     @Test
     fun `long user names fall back to the firmware name`() {
         val cfg = config(setOf(Sources.SA, Sources.SB), names = mapOf(Sources.SA to "Flaps", Sources.SB to "Arm"))
-        val labels = controls(planPages(cfg, ModelExtras())[0]).switches.map { it.label }
-        assertEquals(listOf("SA", "Arm"), labels)
-    }
-
-    @Test
-    fun `flight mode page appears only when something is configured`() {
-        val cfg = config(setOf(Sources.SA))
-        assertEquals(1, planPages(cfg, ModelExtras()).size)
-
-        val withLogic = ModelExtras(
-            logicalSwitches = listOf(LogicalSwitch(index = 2, function = LogicalFunction.A_GREATER_X), LogicalSwitch(index = 5)),
-        )
-        val pages = planPages(cfg, withLogic)
-        assertEquals(2, pages.size)
-        val modes = pages.last() as HomePage.Modes
-        assertFalse(modes.flightModesUsed)
-        // The empty slot L6 is not listed.
-        assertEquals(listOf("L3"), modes.logicSwitches.map { it.label })
-
-        val withModes = ModelExtras(
-            flightModes = FlightModesConfig(enabled = true, modeSwitch = SourceId.SB, modes = listOf(FlightModeConfig("Cruise"))),
-        )
-        assertTrue((planPages(cfg, withModes).last() as HomePage.Modes).flightModesUsed)
-    }
-
-    @Test
-    fun `logical switch chips are capped and the rest is counted`() {
-        val logic = List(15) { LogicalSwitch(index = it, function = LogicalFunction.A_GREATER_X) }
-        val modes = planPages(config(setOf(Sources.SA)), ModelExtras(logicalSwitches = logic)).last() as HomePage.Modes
-        assertEquals(LOGIC_CHIPS_PER_PAGE, modes.logicSwitches.size)
-        assertEquals(5, modes.hiddenLogicSwitches)
-    }
-
-    @Test
-    fun `page count is capped and the flight mode page is kept`() {
-        // 16 switches and 8 pots + 8 sliders + 6 counters: far more than eight control pages.
-        val enabled = (Sources.P1..Sources.CNT6).toSet()
-        val extras = ModelExtras(logicalSwitches = listOf(LogicalSwitch(index = 0, function = LogicalFunction.A_GREATER_X)))
-        val pages = planPages(config(enabled), extras)
-        assertEquals(MAX_INPUT_PAGES, pages.size)
-        assertTrue(pages.last() is HomePage.Modes)
+        assertEquals(listOf("SA", "Arm"), planInputs(cfg).switches.map { it.label })
     }
 
     @Test
@@ -154,21 +125,19 @@ class HomeModelTest {
     fun `state takes model, extras and configuration together`() {
         val pinned = WidgetConfig(id = "w", pinned = true)
         val extras = ModelExtras(
-            home = HomePreferences(centerCard = HomeCenterCard.WIDGETS, inputPage = 99, channelPage = 7),
+            home = HomePreferences(centerCard = HomeCenterCard.WIDGETS, channelPage = 7),
             telemetry = TelemetryLayout(pages = listOf(TelemetryPage(id = "p", widgets = listOf(pinned, WidgetConfig(id = "x"))))),
         )
         val model = ModelEntry(id = "m", name = "Alula", picturePath = "/p.jpg", pictureVersion = 4)
         val state = buildHomeState(model, extras, config(setOf(Sources.SA), stick = StickMode.MODE_1))
 
-        assertEquals("Alula", state.modelName)
         assertEquals("/p.jpg", state.picturePath)
         assertEquals(4L, state.pictureVersion)
         assertEquals(HomeCenterCard.WIDGETS, state.centerCard)
         assertEquals(listOf(pinned), state.pinnedWidgets)
         assertEquals(StickMode.MODE_1, state.stickMode)
-        // Remembered pages are clamped to what exists.
+        // The remembered channel page is clamped to what exists.
         assertEquals(CHANNEL_PAGES - 1, state.channelPage)
-        assertEquals(state.pages.size - 1, state.pageIndex)
         // Only CH03 has mixes.
         assertEquals(listOf(2), state.channels.filter { it.emphasized }.map { it.index })
     }
@@ -178,6 +147,48 @@ class HomeModelTest {
         val base = buildHomeState(null, ModelExtras(), org.openax12.core.model.WorkingConfig.EMPTY)
         assertEquals((0..7).toList(), base.visibleChannels.map { it.index })
         assertEquals((8..15).toList(), base.copy(channelPage = 1).visibleChannels.map { it.index })
-        assertEquals("", base.modelName)
+    }
+
+    private fun pinnedWidgets(count: Int) = List(count) { WidgetConfig(id = "w$it", pinned = true, pinOrder = it) }
+
+    private fun extrasWith(pinned: Int, centerCard: HomeCenterCard? = null) = ModelExtras(
+        home = HomePreferences(centerCard = centerCard),
+        telemetry = TelemetryLayout(pages = listOf(TelemetryPage(id = "p", widgets = pinnedWidgets(pinned)))),
+    )
+
+    @Test
+    fun `a model with pinned widgets opens on the widgets`() {
+        val state = buildHomeState(null, extrasWith(pinned = 3), config(emptySet()))
+        assertEquals(HomeCenterCard.WIDGETS, state.centerCard)
+        assertTrue(state.hasPinnedWidgets)
+    }
+
+    @Test
+    fun `a model without pinned widgets shows the picture whatever was stored`() {
+        for (stored in listOf(null, HomeCenterCard.PICTURE, HomeCenterCard.WIDGETS)) {
+            val state = buildHomeState(null, extrasWith(pinned = 0, centerCard = stored), config(emptySet()))
+            assertEquals(HomeCenterCard.PICTURE, state.centerCard)
+            assertFalse(state.hasPinnedWidgets)
+        }
+    }
+
+    @Test
+    fun `the remembered choice wins when widgets are pinned`() {
+        val state = buildHomeState(null, extrasWith(pinned = 2, centerCard = HomeCenterCard.PICTURE), config(emptySet()))
+        assertEquals(HomeCenterCard.PICTURE, state.centerCard)
+    }
+
+    @Test
+    fun `flipping from the default view remembers the picture and flips back`() {
+        val first = toggleCenterCard(extrasWith(pinned = 2))
+        assertEquals(HomeCenterCard.PICTURE, first.home.centerCard)
+        val second = toggleCenterCard(first)
+        assertEquals(HomeCenterCard.WIDGETS, second.home.centerCard)
+    }
+
+    @Test
+    fun `flipping does nothing without pinned widgets`() {
+        val extras = extrasWith(pinned = 0)
+        assertEquals(extras, toggleCenterCard(extras))
     }
 }

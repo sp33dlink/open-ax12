@@ -67,7 +67,7 @@ class ModelSerializationTest {
         sensorOverrides = mapOf(Sensors.BATTERY_VOLTAGE.key to SensorOverride(name = "Flight pack", precision = 2)),
         alarms = listOf(SensorAlarm("a1", sensor = Sensors.BATTERY_VOLTAGE, threshold = 6.8, hysteresis = 0.2, repeatSec = 10, outputs = AlarmOutputs(voiceText = "Battery low", popup = true))),
         timerVoice = listOf(TimerVoiceOptions(0, minuteCall = true, countdown = CountdownStyle.VOICE)),
-        home = HomePreferences(HomeCenterCard.WIDGETS, inputPage = 2),
+        home = HomePreferences(HomeCenterCard.WIDGETS, channelPage = 1),
         managed = ManagedItems(
             mixes = listOf(ManagedMix(0, Sources.SA, ManagedItems.GENERATOR_FLIGHT_MODES)),
             curves = listOf(ManagedCurve(17, ManagedItems.GENERATOR_FLIGHT_MODES)),
@@ -108,7 +108,7 @@ class ModelSerializationTest {
     fun `unknown keys and unknown enum values are tolerated`() {
         val text = """
             {
-              "schemaVersion": 1,
+              "schemaVersion": 2,
               "modelType": "ORNITHOPTER",
               "futureSection": { "a": [1, 2, 3] },
               "notes": "kept",
@@ -123,10 +123,36 @@ class ModelSerializationTest {
         assertEquals(ModelType.GLIDER, extras.modelType)
         assertEquals("kept", extras.notes)
         assertTrue(extras.vario.alwaysOn)
-        assertEquals(HomeCenterCard.PICTURE, extras.home.centerCard)
-        assertEquals(3, extras.home.inputPage)
+        assertNull(extras.home.centerCard)
+        assertEquals(0, extras.home.channelPage)
         assertEquals(SpecialAction.Vario, extras.specialFunction(2)?.action)
         assertEquals(Trigger.Always, extras.specialFunction(2)?.trigger)
+    }
+
+    @Test
+    fun `version 1 file drops the stored default of the centre card`() {
+        val decoded = ModelExtrasCodec.decode(
+            """{ "schemaVersion": 1, "home": { "centerCard": "PICTURE", "inputPage": 2, "channelPage": 1 } }""",
+        )
+        assertTrue(decoded.migrated)
+        assertNull(decoded.extras.home.centerCard)
+        assertEquals(1, decoded.extras.home.channelPage)
+        // A choice made after the migration is kept.
+        val chosen = ModelExtras(home = HomePreferences(HomeCenterCard.PICTURE))
+        assertEquals(HomeCenterCard.PICTURE, ModelExtrasCodec.decode(ModelExtrasCodec.encode(chosen)).extras.home.centerCard)
+    }
+
+    @Test
+    fun `centre card shows the widgets first when some are pinned`() {
+        val auto = HomePreferences()
+        assertEquals(HomeCenterCard.WIDGETS, auto.resolvedCenterCard(hasPinnedWidgets = true))
+        assertEquals(HomeCenterCard.PICTURE, auto.resolvedCenterCard(hasPinnedWidgets = false))
+        // A remembered choice wins, but without pinned widgets there is nothing to show.
+        val picture = HomePreferences(centerCard = HomeCenterCard.PICTURE)
+        assertEquals(HomeCenterCard.PICTURE, picture.resolvedCenterCard(hasPinnedWidgets = true))
+        val widgets = HomePreferences(centerCard = HomeCenterCard.WIDGETS)
+        assertEquals(HomeCenterCard.WIDGETS, widgets.resolvedCenterCard(hasPinnedWidgets = true))
+        assertEquals(HomeCenterCard.PICTURE, widgets.resolvedCenterCard(hasPinnedWidgets = false))
     }
 
     @Test

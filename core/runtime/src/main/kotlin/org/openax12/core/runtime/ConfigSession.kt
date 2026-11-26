@@ -67,6 +67,33 @@ enum class SessionError {
      * retries the write.
      */
     DEVICE_WRITE_PENDING,
+
+    /**
+     * The radio-wide settings (stick mode, RF module, alarm voltage) cannot be read in a
+     * trustworthy way, so nothing is written: `rcGetRcSysConfig()` is unreliable and the model file
+     * did not give plausible values either (`SystemConfigValidity`). Nothing was changed.
+     */
+    SYSTEM_CONFIG_UNAVAILABLE,
+
+    /**
+     * A system configuration change did not reach the radio: the requested values are implausible,
+     * the SDK rejected them, or after the write the radio still reports the old values.
+     */
+    SYSTEM_CONFIG_NOT_APPLIED,
+
+    /**
+     * The change would switch the RF module off (the radio stops transmitting) and the caller did
+     * not confirm that explicitly. Nothing was changed.
+     */
+    RF_OFF_NOT_CONFIRMED,
+
+    /**
+     * The working config was empty or incomplete (no channels, every channel limit 0: what an
+     * incomplete model load leaves behind, assumption r11), so the radio refused to write it and
+     * nothing was sent. The session read the radio's configuration back (or reloaded the current
+     * model); the device was not changed.
+     */
+    CONFIG_INCOMPLETE,
 }
 
 /** Result of a [ConfigSession] operation. */
@@ -285,18 +312,36 @@ interface ConfigSession {
     /**
      * Changes the system configuration (stick mode, alarm voltage, RF module mode) and persists
      * it: a serialized `Radio.getSystemConfig` → [transform] → `Radio.setSystemConfig`, followed
-     * by a device write (`ModelRepository.onDeviceConfigWritten`; no snapshot). `:feature:system`
-     * must use this and never call `Radio.saveConfigToDevice` itself.
+     * by a device write (`ModelRepository.onDeviceConfigWritten`; no snapshot) and a check that the
+     * radio now reports the requested values. `:feature:system` must use this and never call
+     * `Radio.saveConfigToDevice` itself.
      *
-     * Refused with [SessionError.UNSAVED_CHANGES] while [dirty] (the write would silently save
-     * the pending model edits — the caller offers save / discard first) and with
-     * [SessionError.DEVICE_WRITE_PENDING] while [deviceInSync] is false. If the device write
-     * fails the change stays in the working config and [dirty] becomes true, so [save] retries
-     * and [discard] reverts it.
+     * Stick mode, RF module and alarm voltage are radio-wide: after the radio took the change the
+     * same values are written into every other model of the library
+     * (`ModelRepository.applyRadioWideSettings`; failures of single models are only recorded in the
+     * diagnostics, they are corrected when the model is loaded).
      *
-     * @return the system configuration that was written
+     * Refused (nothing is written, [saveState] is left alone) with
+     * - [SessionError.UNSAVED_CHANGES] while [dirty] (the write would silently save the pending
+     *   model edits — the caller offers save / discard first),
+     * - [SessionError.DEVICE_WRITE_PENDING] while [deviceInSync] is false,
+     * - [SessionError.SYSTEM_CONFIG_UNAVAILABLE] when the current values cannot be read or are not
+     *   plausible (they would be written back),
+     * - [SessionError.SYSTEM_CONFIG_NOT_APPLIED] when the transformed values are not plausible,
+     * - [SessionError.RF_OFF_NOT_CONFIRMED] when the change switches the RF module off and
+     *   [rfOffConfirmed] is false.
+     *
+     * If the device write fails the change stays in the working config and [dirty] becomes true,
+     * so [save] retries and [discard] reverts it.
+     *
+     * @param rfOffConfirmed the user explicitly confirmed "Turn the RF module off? The radio stops
+     *   transmitting". Must be false for every other change.
+     * @return the system configuration the radio reports after the write
      */
-    suspend fun updateSystemConfig(transform: (SystemConfig) -> SystemConfig): SessionResult<SystemConfig>
+    suspend fun updateSystemConfig(
+        rfOffConfirmed: Boolean = false,
+        transform: (SystemConfig) -> SystemConfig,
+    ): SessionResult<SystemConfig>
 
     /**
      * "Restore defaults" (`Radio.resetToDefaults`, double-confirmed by the caller): waits for the

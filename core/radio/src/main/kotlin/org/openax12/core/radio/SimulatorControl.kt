@@ -22,6 +22,12 @@ enum class SimulatedFault {
     /** The next `addMix()` fails (channel full). */
     ADD_MIX_FAILS,
 
+    /**
+     * The next `loadModelFile()` answers `true` but leaves an incomplete working config: no mixes
+     * and every channel limit 0, like the SDK does for a model file without `channelOut`.
+     */
+    INCOMPLETE_MODEL_LOAD,
+
     /** Emits [RadioEvent.LowVoltage] and drops the simulated TX voltage below the alarm threshold. */
     LOW_TX_VOLTAGE,
 

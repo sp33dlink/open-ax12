@@ -12,6 +12,8 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.openax12.core.data.DataResult
+import org.openax12.core.data.RadioWideReport
 import org.openax12.core.model.AppDispatchers
 import org.openax12.core.model.FlightModeConfig
 import org.openax12.core.model.FlightModesConfig
@@ -19,11 +21,17 @@ import org.openax12.core.model.ManagedItems
 import org.openax12.core.model.ManagedMix
 import org.openax12.core.model.ModelBlueprint
 import org.openax12.core.model.ModelType
+import org.openax12.core.model.RadioWidePatch
+import org.openax12.core.model.RfModuleMode
 import org.openax12.core.model.SourceId
 import org.openax12.core.model.StickMode
 import org.openax12.core.model.SwitchPosition
+import org.openax12.core.model.SystemConfig
 import org.openax12.core.model.WingConfig
+import org.openax12.core.radio.Radio
 import org.openax12.core.radio.SimulatedFault
+import org.openax12.core.radio.TaskResult
+import org.openax12.core.radio.getCurrentModel
 import org.openax12.core.radio.fake.FakeRadio
 import org.openax12.core.radio.getMixes
 import org.openax12.core.radio.readWorkingConfig
@@ -41,7 +49,7 @@ class ConfigSessionTest {
     /** No delays and no clock-driven frames: nothing happens unless the test asks for it. */
     private val deterministic = FakeRadio.Options(demoMotion = false, realisticDelays = false, autoTick = false)
 
-    private suspend fun TestScope.rig(startRadio: Boolean = true): Rig {
+    private suspend fun TestScope.rig(startRadio: Boolean = true, wrap: (FakeRadio) -> Radio = { it }): Rig {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val radio = FakeRadio(
             scope = backgroundScope,
@@ -50,10 +58,11 @@ class ConfigSessionTest {
             clock = { testScheduler.currentTime },
             options = deterministic,
         )
-        val models = FakeModels(radio)
+        val seen = wrap(radio)
+        val models = FakeModels(seen)
         val diagnostics = DefaultDiagnosticsLog()
         val session = DefaultConfigSession(
-            radio = radio,
+            radio = seen,
             models = models,
             diagnostics = diagnostics,
             scope = backgroundScope,
@@ -290,6 +299,46 @@ class ConfigSessionTest {
     }
 
     @Test
+    fun anIncompleteModelLoadIsRefusedAndNeverReachesTheRadio() = runTest {
+        val rig = rig()
+        val second = rig.secondModel()
+        val deviceMixes = rig.radio.readWorkingConfig().mixes.size
+        assertTrue(deviceMixes > 0)
+        rig.radio.simulator.injectFault(SimulatedFault.INCOMPLETE_MODEL_LOAD)
+        rig.radio.advance(40)
+
+        val result = rig.session.selectModel(second)
+
+        // The radio refused to write the empty working config (nothing was sent) ...
+        assertEquals(SessionError.CONFIG_INCOMPLETE, result.errorOrNull())
+        assertEquals(0, rig.models.writtenCount)
+        assertTrue(rig.diagnostics.entries.value.any { "refused to write an incomplete" in it.message })
+        // ... and the session did not leave the empty config in place.
+        assertFalse(rig.session.workingConfig.value.isEmpty)
+        assertEquals(deviceMixes, rig.session.workingConfig.value.mixes.size)
+        // The device still holds the original configuration.
+        assertEquals(TaskResult.COMPLETED, rig.radio.readConfigFromDevice())
+        assertEquals(deviceMixes, rig.radio.readWorkingConfig().mixes.size)
+    }
+
+    @Test
+    fun savingAnEmptyWorkingConfigIsRefusedAndRecovered() = runTest {
+        val rig = rig()
+        val deviceMixes = rig.radio.readWorkingConfig().mixes.size
+        rig.radio.simulator.injectFault(SimulatedFault.INCOMPLETE_MODEL_LOAD)
+        rig.radio.advance(40)
+        // Something loads the current model file behind the session's back.
+        assertTrue(rig.radio.loadModelFile(rig.radio.getCurrentModel()!!.filePath))
+
+        val result = rig.session.save()
+
+        assertEquals(SessionError.CONFIG_INCOMPLETE, result.errorOrNull())
+        assertEquals(0, rig.models.savedCount)
+        assertEquals(deviceMixes, rig.radio.readWorkingConfig().mixes.size)
+        assertFalse(rig.session.dirty.value)
+    }
+
+    @Test
     fun aDeviceWriteThatDoesNotCompleteLeavesTheModelLoadedAndSaveRetries() = runTest {
         val rig = rig()
         val second = rig.secondModel()
@@ -360,6 +409,147 @@ class ConfigSessionTest {
         assertEquals(StickMode.MODE_1, rig.radio.getSystemConfig()!!.stickMode)
         assertEquals(1, rig.models.writtenCount)
         assertFalse(rig.session.dirty.value)
+    }
+
+    /** A radio whose system-configuration reads and writes are scripted; everything else is the simulator. */
+    private class ScriptedSystemRadio(private val inner: FakeRadio) : Radio by inner {
+        /** `null` = no trustworthy values; `UNSET` = ask the simulator. */
+        var reported: SystemConfig? = UNSET
+        var applyWrites = true
+
+        /** The write changes the working config and then reports failure (a half-applied write). */
+        var failAfterApplying = false
+        val writes = mutableListOf<SystemConfig>()
+
+        override suspend fun getSystemConfig(): SystemConfig? = if (reported === UNSET) inner.getSystemConfig() else reported
+
+        override suspend fun setSystemConfig(config: SystemConfig): Boolean {
+            writes += config
+            if (failAfterApplying) {
+                inner.setSystemConfig(config)
+                return false
+            }
+            return if (applyWrites) inner.setSystemConfig(config) else true
+        }
+
+        companion object {
+            val UNSET = SystemConfig(alarmVoltageDeciVolt = -12345)
+        }
+    }
+
+    private lateinit var scripted: ScriptedSystemRadio
+
+    private suspend fun TestScope.scriptedRig(): Rig = rig { fake -> ScriptedSystemRadio(fake).also { scripted = it } }
+
+    @Test
+    fun aChangedAlarmVoltageIsWrittenAndPassedToTheOtherModels() = runTest {
+        val rig = rig()
+        val before = rig.radio.getSystemConfig()!!
+
+        val result = rig.session.updateSystemConfig { it.copy(alarmVoltageDeciVolt = 34) }
+
+        assertTrue(result.toString(), result.isSuccess)
+        assertEquals(34, rig.radio.getSystemConfig()!!.alarmVoltageDeciVolt)
+        assertEquals(before.rfModuleMode, rig.radio.getSystemConfig()!!.rfModuleMode)
+        // Only the changed field goes to the library.
+        assertEquals(listOf(RadioWidePatch(alarmVoltageDeciVolt = 34)), rig.models.radioWidePatches.toList())
+    }
+
+    @Test
+    fun aChangeThatChangesNothingIsNotPassedToTheLibrary() = runTest {
+        val rig = rig()
+        val result = rig.session.updateSystemConfig { it }
+        assertTrue(result.isSuccess)
+        assertTrue(rig.models.radioWidePatches.isEmpty())
+    }
+
+    @Test
+    fun failuresOfSingleModelsDoNotFailTheChangeButAreRecorded() = runTest {
+        val rig = rig()
+        rig.models.radioWideReport = DataResult.Success(RadioWideReport(failed = listOf("Old plane: rcImportModelCfg failed")))
+        val result = rig.session.updateSystemConfig { it.copy(alarmVoltageDeciVolt = 40) }
+        assertTrue(result.isSuccess)
+        assertTrue(rig.diagnostics.entries.value.any { "Old plane" in it.message })
+    }
+
+    @Test
+    fun switchingTheRfModuleOffNeedsAnExplicitConfirmation() = runTest {
+        val rig = scriptedRig()
+        val refused = rig.session.updateSystemConfig { it.copy(rfModuleMode = RfModuleMode.OFF) }
+
+        assertEquals(SessionError.RF_OFF_NOT_CONFIRMED, refused.errorOrNull())
+        assertTrue("nothing may be written", scripted.writes.isEmpty())
+        assertEquals(RfModuleMode.INTERNAL, rig.radio.getSystemConfig()!!.rfModuleMode)
+        assertEquals(0, rig.models.writtenCount)
+        assertFalse(rig.session.saveState.value is SaveState.Failed)
+
+        val confirmed = rig.session.updateSystemConfig(rfOffConfirmed = true) { it.copy(rfModuleMode = RfModuleMode.OFF) }
+        assertTrue(confirmed.toString(), confirmed.isSuccess)
+        assertEquals(RfModuleMode.OFF, rig.radio.getSystemConfig()!!.rfModuleMode)
+        assertEquals(listOf(RadioWidePatch(rfModuleMode = RfModuleMode.OFF.sdk)), rig.models.radioWidePatches.toList())
+    }
+
+    @Test
+    fun theConfirmationIsOnlyNeededForTheStepIntoOff() = runTest {
+        val rig = scriptedRig()
+        assertTrue(rig.session.updateSystemConfig(rfOffConfirmed = true) { it.copy(rfModuleMode = RfModuleMode.OFF) }.isSuccess)
+        // RF is off already: other changes and turning it back on need no confirmation.
+        assertTrue(rig.session.updateSystemConfig { it.copy(alarmVoltageDeciVolt = 50) }.isSuccess)
+        assertTrue(rig.session.updateSystemConfig { it.copy(rfModuleMode = RfModuleMode.INTERNAL) }.isSuccess)
+    }
+
+    @Test
+    fun nothingIsWrittenWhenTheCurrentValuesCannotBeTrusted() = runTest {
+        val rig = scriptedRig()
+
+        scripted.reported = null
+        val unavailable = rig.session.updateSystemConfig { it.copy(alarmVoltageDeciVolt = 34) }
+        assertEquals(SessionError.SYSTEM_CONFIG_UNAVAILABLE, unavailable.errorOrNull())
+
+        // The kind of value the SDK getter returned on the AX12: not a plausible alarm voltage / baud code.
+        scripted.reported = SystemConfig(alarmVoltageDeciVolt = 300, crsfBaudRate = 206, modelMatchId = 181)
+        val implausible = rig.session.updateSystemConfig { it.copy(alarmVoltageDeciVolt = 34) }
+        assertEquals(SessionError.SYSTEM_CONFIG_UNAVAILABLE, implausible.errorOrNull())
+
+        assertTrue("nothing may be written", scripted.writes.isEmpty())
+        assertEquals(0, rig.models.writtenCount)
+        assertTrue(rig.models.radioWidePatches.isEmpty())
+        assertFalse(rig.session.saveState.value is SaveState.Failed)
+    }
+
+    @Test
+    fun implausibleNewValuesAreRefusedBeforeTheyReachTheRadio() = runTest {
+        val rig = scriptedRig()
+        val result = rig.session.updateSystemConfig { it.copy(alarmVoltageDeciVolt = 256) }
+        assertEquals(SessionError.SYSTEM_CONFIG_NOT_APPLIED, result.errorOrNull())
+        assertTrue(scripted.writes.isEmpty())
+    }
+
+    @Test
+    fun aWriteThatFailedHalfwayIsReadBackFromTheDeviceInsteadOfStayingInTheWorkingConfig() = runTest {
+        val rig = scriptedRig()
+        val before = rig.radio.getSystemConfig()!!.alarmVoltageDeciVolt
+        scripted.failAfterApplying = true
+
+        val result = rig.session.updateSystemConfig { it.copy(alarmVoltageDeciVolt = 34) }
+
+        assertEquals(SessionError.SYSTEM_CONFIG_NOT_APPLIED, result.errorOrNull())
+        assertEquals("the half-applied change is gone", before, rig.radio.getSystemConfig()!!.alarmVoltageDeciVolt)
+        assertFalse(rig.session.dirty.value)
+        assertTrue(rig.session.saveState.value is SaveState.Failed)
+        assertTrue(rig.models.radioWidePatches.isEmpty())
+    }
+
+    @Test
+    fun aChangeTheRadioDoesNotShowAfterTheWriteIsNotReportedAsDone() = runTest {
+        val rig = scriptedRig()
+        scripted.applyWrites = false
+
+        val result = rig.session.updateSystemConfig { it.copy(alarmVoltageDeciVolt = 34) }
+
+        assertEquals(SessionError.SYSTEM_CONFIG_NOT_APPLIED, result.errorOrNull())
+        assertTrue(rig.session.saveState.value is SaveState.Failed)
+        assertTrue("the library must not learn about a change that did not happen", rig.models.radioWidePatches.isEmpty())
     }
 
     @Test

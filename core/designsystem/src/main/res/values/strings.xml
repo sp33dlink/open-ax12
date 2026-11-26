@@ -48,6 +48,7 @@
     <string name="ax_length_of">%1$d / %2$d</string>
 
     <!-- Dialogs -->
+    <string name="ax_hold_hint">Press and hold the red button until it is full.</string>
     <string name="ax_step_of">Step %1$d of %2$d</string>
     <string name="ax_unsaved_title">Unsaved changes</string>
     <string name="ax_unsaved_message">The model setup has changes that are not saved to the radio yet. Save writes them to the transmitter and stores the model; Discard restores the last saved state.</string>

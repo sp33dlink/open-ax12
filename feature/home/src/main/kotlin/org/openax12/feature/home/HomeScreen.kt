@@ -13,8 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.openax12.core.model.LiveSnapshot
-import org.openax12.core.model.LogicalSwitchStates
-import org.openax12.core.runtime.ActiveFlightMode
 import org.openax12.core.widgets.LocalWidgetDataSource
 import org.openax12.core.widgets.WidgetDataSource
 
@@ -27,16 +25,12 @@ import org.openax12.core.widgets.WidgetDataSource
  * in the draw phase of the composables that show them, so a 25 Hz stream never recomposes the screen.
  *
  * @param live latest radio frame; read it only inside draw lambdas
- * @param flightMode the active flight mode (only the flight-mode page reads it)
- * @param logicalSwitches the logical-switch states (only the flight-mode page reads them)
  * @param widgetDataSource data of the pinned widgets on the flipped centre card
  */
 @Composable
 internal fun HomeScreen(
     state: HomeUiState,
     live: () -> LiveSnapshot,
-    flightMode: () -> ActiveFlightMode,
-    logicalSwitches: () -> LogicalSwitchStates,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
     widgetDataSource: WidgetDataSource = LocalWidgetDataSource.current,
@@ -70,12 +64,8 @@ internal fun HomeScreen(
             HomeStickPad(PadSide.RIGHT, state.stickMode, live)
             Spacer(Modifier.height(6.dp))
             InputPanel(
-                pages = state.pages,
-                pageIndex = state.pageIndex,
-                onSelectPage = { onAction(HomeAction.SelectInputPage(it)) },
+                state = state.inputs,
                 live = live,
-                flightMode = flightMode,
-                logicalSwitches = logicalSwitches,
                 modifier = Modifier.weight(1f),
             )
         }

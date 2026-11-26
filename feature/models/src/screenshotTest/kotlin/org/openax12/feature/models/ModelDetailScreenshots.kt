@@ -3,6 +3,7 @@ package org.openax12.feature.models
 import androidx.compose.runtime.Composable
 import com.android.tools.screenshot.PreviewTest
 import org.openax12.core.designsystem.Ax12Preview
+import org.openax12.core.designsystem.AxThemeMode
 
 private fun detail(
     index: Int = 0,
@@ -62,4 +63,31 @@ fun ModelDetailDeleteScreenshot() {
 @Composable
 fun ModelDetailRenameScreenshot() {
     ShellFrame { ModelDetailScreen(detail(1, DetailDialog.Rename), DetailActions(), PreviewNow) }
+}
+
+@PreviewTest
+@Ax12Preview
+@Composable
+fun ModelDetailDeleteFillingScreenshot() {
+    ShellFrame {
+        ModelDetailScreen(detail(1), DetailActions(), PreviewNow)
+        DeleteModelDialog(name = PreviewModels[1].name, onConfirm = {}, onDismiss = {}, fillOverride = 0.45f)
+    }
+}
+
+@PreviewTest
+@Ax12Preview
+@Composable
+fun ModelDetailDeleteDarkScreenshot() {
+    ShellFrame(AxThemeMode.DARK) { ModelDetailScreen(detail(1), DetailActions(), PreviewNow) }
+}
+
+@PreviewTest
+@Ax12Preview
+@Composable
+fun ModelDetailDeleteHighContrastScreenshot() {
+    ShellFrame(AxThemeMode.HIGH_CONTRAST) {
+        ModelDetailScreen(detail(1), DetailActions(), PreviewNow)
+        DeleteModelDialog(name = PreviewModels[1].name, onConfirm = {}, onDismiss = {}, fillOverride = 0.7f)
+    }
 }

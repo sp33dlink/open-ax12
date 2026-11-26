@@ -43,6 +43,7 @@
     <string name="models_empty_title">No models yet</string>
     <string name="models_empty_message">Create a model from a template or import a model file.</string>
     <string name="models_selected">%1$s is now the model of the radio.</string>
+    <string name="models_rf_off_warning">The RF module of this radio is off, so the model does not transmit. Turn it on under System, Radio.</string>
     <string name="models_written">The model was written to the radio.</string>
 
     <!-- Banners -->
@@ -103,6 +104,7 @@
     <string name="models_delete_message">The model, its picture, notes and all its snapshots are removed from the radio and the library.</string>
     <string name="models_delete_second">This cannot be undone. Export the model first if you may need it again.</string>
     <string name="models_delete_hold">Hold to delete</string>
+    <string name="models_delete_hold_description">Delete model. Press and hold, or activate with an accessibility service.</string>
     <string name="models_share_title">Share model</string>
 
     <!-- Snapshots -->
@@ -221,6 +223,7 @@
     <string name="models_err_plan">The model could not be set up completely. Nothing was changed.</string>
     <string name="models_err_unsaved">There are unsaved changes. Save or discard them first.</string>
     <string name="models_err_write_pending">The model is loaded but the radio did not confirm it. Open Model setup and press Save to write it again.</string>
+    <string name="models_err_config_incomplete">The model did not load completely. Nothing was written to the radio; its own configuration is unchanged.</string>
     <string name="models_err_no_picker">No file picker is available on this device.</string>
     <string name="models_err_no_share_target">No app can receive the model file.</string>
 </resources>

@@ -323,6 +323,7 @@ fun TouchLockOverlay(
                     color = colors.chrome,
                     contentColor = colors.onChrome,
                     icon = AxIcons.TouchLock,
+                    outlined = false,
                 )
             }
         }

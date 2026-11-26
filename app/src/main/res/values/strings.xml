@@ -9,12 +9,28 @@
     <string name="startup_error_title">Cannot connect to the radio</string>
     <string name="startup_error_retry">Retry</string>
     <string name="startup_error_continue">Continue without radio</string>
-    <string name="startup_error_stock_hint">Another app may be using the radio\'s serial port. Force-close the stock RadioMaster app (Settings, Apps, RadioMaster, Force stop), then tap Retry. Only one app can talk to the radio at a time.</string>
+    <string name="startup_error_stock_hint">Another app may be using the radio\'s serial port, most likely the stock RadioMaster app. Tap Close stock app, or swipe it away in the recent-apps view, or use Settings, Apps, RadioMaster AX, Force stop. Then tap Retry. Only one app can talk to the radio at a time.</string>
+    <string name="startup_error_port_hint">Another app may be using the radio\'s serial port. Close any other app that talks to the radio, then tap Retry. Only one app can talk to the radio at a time.</string>
+    <string name="startup_slow_hint">Still connecting. The stock RadioMaster app may still be running in the background and blocking the radio.</string>
+    <string name="stock_close_button">Close stock app</string>
+    <string name="stock_open_settings">Open app settings</string>
     <string name="startup_error_native_hint">The radio library could not be loaded. Set the radio backend to Simulator in the system settings to try the app without a radio.</string>
     <string name="startup_error_firmware_hint">The radio firmware is not compatible with this app. Firmware updates are done in the stock RadioMaster app.</string>
     <string name="startup_error_footer">You can continue without the radio to open the model library, the settings and the help; nothing can be sent to the radio until the connection works.</string>
     <string name="connection_lost_title">Radio connection lost</string>
     <string name="connection_lost_dismiss">Dismiss</string>
+
+    <!-- Onboarding (first start) -->
+    <string name="onboarding_welcome_title">Welcome to open-ax12</string>
+    <string name="onboarding_welcome_text">open-ax12 is an open app for the RadioMaster AX12 that keeps the stock look and adds EdgeTX-style functions such as logical switches, special functions, flight modes and voice.</string>
+    <string name="onboarding_exclusive_text">The stock RadioMaster app and open-ax12 cannot use the radio at the same time. Only one of them can be connected.</string>
+    <string name="onboarding_connecting_note">The connection to the radio is being set up in the background.</string>
+    <string name="onboarding_close_stock">Always close the stock RadioMaster app</string>
+    <string name="onboarding_close_stock_desc">Closes it before connecting so that it cannot block the radio</string>
+    <string name="onboarding_start_on_boot">Start open-ax12 when the radio boots</string>
+    <string name="onboarding_start_on_boot_desc">Opens this app a few seconds after the radio has started</string>
+    <string name="onboarding_changeable">You can change both choices later in System, App.</string>
+    <string name="onboarding_get_started">Get started</string>
 
     <!-- Foreground service notification -->
     <string name="notification_channel_name">Radio connection</string>

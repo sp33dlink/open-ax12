@@ -28,8 +28,9 @@ import androidx.compose.ui.graphics.Color
  * @property accent accent blue: bars, selection, links
  * @property onAccent content on [accent]
  * @property glow bright accent used for "lit" states (stick pad borders, centre marker)
- * @property teal switch "down" state
- * @property orange switch "up" state
+ * @property teal switch "up" state (+100 %)
+ * @property orange switch "mid" state (0 %); also the general warm highlight
+ * @property neutral switch "down" state (−100 %): a gray that reads on sunken wells in every scheme
  * @property channelGreen channel bars in the setup screens
  * @property chrome dark navy bar of the model-setup chrome
  * @property chromeRaised column-header row inside the chrome
@@ -65,6 +66,7 @@ class AxColors(
     val glow: Color,
     val teal: Color,
     val orange: Color,
+    val neutral: Color,
     val channelGreen: Color,
     val chrome: Color,
     val chromeRaised: Color,
@@ -101,6 +103,7 @@ val LightAxColors: AxColors = AxColors(
     glow = Color(0xFF2B9BEA),
     teal = Color(0xFF1FB8A6),
     orange = Color(0xFFF2A65A),
+    neutral = Color(0xFF8396A1),
     channelGreen = Color(0xFF12A66A),
     chrome = Color(0xFF14283A),
     chromeRaised = Color(0xFF1D3A52),
@@ -137,6 +140,7 @@ val DarkAxColors: AxColors = AxColors(
     glow = Color(0xFF66C6FF),
     teal = Color(0xFF2FD0BC),
     orange = Color(0xFFF5B36E),
+    neutral = Color(0xFF8DA2AF),
     channelGreen = Color(0xFF25C486),
     chrome = Color(0xFF081219),
     chromeRaised = Color(0xFF14283A),
@@ -173,6 +177,7 @@ val HighContrastAxColors: AxColors = AxColors(
     glow = Color(0xFF0068FF),
     teal = Color(0xFF007566),
     orange = Color(0xFFD35400),
+    neutral = Color(0xFF6E6E6E),
     channelGreen = Color(0xFF00703A),
     chrome = Color(0xFF000000),
     chromeRaised = Color(0xFF1C1C1C),

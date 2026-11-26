@@ -5,14 +5,16 @@ look and feel of the stock app and adds EdgeTX-style features on top: logical sw
 functions, voice alerts with telemetry variables, a variometer, flight modes, flaps/wing mixing,
 custom model pictures and a configurable telemetry dashboard.
 
-> **Status: v0.1, early alpha.** It runs on the AX12 and shows live sticks, switches and channels
+> **Status: v0.2, early alpha.** It runs on the AX12 and shows live sticks, switches and channels
 > correctly. Most configuration screens have so far only been exercised against the built-in
 > simulator. Check every model on the ground (receiver connected, propeller off) before you fly
 > with it. Firmware updates stay in the stock app.
 
-| On the AX12 | Pinned telemetry widgets (simulator) |
+| Home with pinned telemetry widgets | Flight modes, compiled into the radio's mixer |
 |---|---|
-| ![Home screen on the AX12](docs/screenshots/home-ax12.png) | ![Home screen with pinned widgets](docs/screenshots/home-widgets.png) |
+| ![Home screen with vario, altitude, battery, link, timer and flight-mode widgets](docs/screenshots/home-telemetry.png) | ![Flight modes tab with three glider modes on switch SC](docs/screenshots/flight-modes.png) |
+
+<sub>Screenshots rendered from simulated data.</sub>
 
 ## Features
 
@@ -41,8 +43,13 @@ latest successful run of the [Android workflow](../../actions/workflows/android.
 (artifact `open-ax12-dev-apk`).
 
 1. Enable developer options and USB debugging on the AX12 and connect it to your computer.
-2. Force-stop the stock RadioMaster app (Android Settings → Apps → RadioMaster AX → Force stop).
-   Only one app can use the radio's serial port.
+2. Only one app can use the radio's serial port. open-ax12 closes the stock RadioMaster app itself
+   before it connects (System → App → "Close the stock app automatically", on by default). If it
+   cannot connect, the error screen has a "Close stock app" button; you can also swipe the stock app
+   away in the recent-apps view or use Android Settings → Apps → RadioMaster AX → Force stop.
+   The first start shows a short onboarding with this choice and "Start open-ax12 when the radio
+   boots" (also in System → App); with the second on, open-ax12 comes up about 15 s after the
+   stock app has started at boot.
 3. Install and start:
 
    ```bash
@@ -80,8 +87,8 @@ missing. `scripts/fetch-sdk.sh --docs` also fetches the SDK manuals and the vend
 ### Versioning
 
 `versionCode` is the number of commits on `HEAD`, so every build from `master` installs over the
-previous one. Dev builds are named `0.1-dev.<commits>+<sha>`; release builds
-(`-Popenax12.release=true`, used for tags) are named `0.1`.
+previous one. Dev builds are named `0.2-dev.<commits>+<sha>`; release builds
+(`-Popenax12.release=true`, used for tags) are named `0.2`.
 
 ### Without a radio
 

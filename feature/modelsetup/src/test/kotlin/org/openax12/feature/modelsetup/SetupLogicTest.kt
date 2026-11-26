@@ -71,15 +71,15 @@ class SetupLogicTest {
     fun conditionForPicksSensibleDefaults() {
         // A switch with "=" starts at "down"; switching the operator keeps the value.
         val fresh = conditionFor(SourceId.SB, CompareOp.EQUAL, SwitchCondition.NONE)
-        assertEquals(SwitchCondition(SourceId.SB, CompareOp.EQUAL, 100), fresh)
+        assertEquals(SwitchCondition(SourceId.SB, CompareOp.EQUAL, SwitchPosition.DOWN.logic), fresh)
         val up = SwitchCondition.at(SourceId.SB, SwitchPosition.UP)
-        assertEquals(SwitchCondition(SourceId.SB, CompareOp.GREATER, -100), conditionFor(SourceId.SB, CompareOp.GREATER, up))
+        assertEquals(SwitchCondition(SourceId.SB, CompareOp.GREATER, SwitchPosition.UP.logic), conditionFor(SourceId.SB, CompareOp.GREATER, up))
         // Another source starts neutral; "Off" clears the value.
         assertEquals(SwitchCondition(SourceId.THR, CompareOp.GREATER, 0), conditionFor(SourceId.THR, CompareOp.GREATER, up))
         assertEquals(SwitchCondition(SourceId.THR, CompareOp.DISABLED, 0), conditionFor(SourceId.THR, CompareOp.DISABLED, up))
         // A value between two positions snaps when "=" is chosen for a switch.
         val between = SwitchCondition(SourceId.SB, CompareOp.GREATER, 60)
-        assertEquals(100, conditionFor(SourceId.SB, CompareOp.EQUAL, between).value)
+        assertEquals(SwitchPosition.UP.logic, conditionFor(SourceId.SB, CompareOp.EQUAL, between).value)
     }
 
     @Test
@@ -117,7 +117,7 @@ class SetupLogicTest {
         logic[SourceId.AIL.index] = 80
         logic[SourceId.SA.index] = 100
         logic[SourceId.SB.index] = 0 // the SA line is off
-        logic[SourceId.SC.index] = -100 // dual rate slot 2 active
+        logic[SourceId.SC.index] = SwitchPosition.UP.logic // dual rate slot 2 active
         val explanation = MixerMath.explain(cfg, logic, 0)!!
         val steps = explainSteps(explanation, cfg.channel(0))
         assertEquals(ExplainStep.Line(SourceId.AIL, true, MixMode.ADD, 40, 40), steps[0])
@@ -146,7 +146,7 @@ class SetupLogicTest {
         logic[SourceId.AIL.index] = 90
         val clamped = explainSteps(MixerMath.explain(cfg, logic, 0)!!, cfg.channel(0))
         assertTrue(clamped.any { it == ExplainStep.Limits(50) })
-        logic[SourceId.SA.index] = 100
+        logic[SourceId.SA.index] = SwitchPosition.DOWN.logic
         val locked = explainSteps(MixerMath.explain(cfg, logic, 0)!!, cfg.channel(0))
         assertTrue(locked.any { it == ExplainStep.Lock(-100) })
         assertEquals(ExplainStep.Output(-100), locked.last())
@@ -182,8 +182,8 @@ class SetupLogicTest {
         )
         val sa = SourceId.SA.index
         val sb = SourceId.SB.index
-        assertEquals(1, activeDualRateSlot(slots) { if (it == sa || it == sb) 100 else 0 })
-        assertEquals(2, activeDualRateSlot(slots) { if (it == sb) 100 else 0 })
+        assertEquals(1, activeDualRateSlot(slots) { if (it == sa || it == sb) SwitchPosition.DOWN.logic else 0 })
+        assertEquals(2, activeDualRateSlot(slots) { if (it == sb) SwitchPosition.DOWN.logic else 0 })
         assertNull(activeDualRateSlot(slots) { 0 })
     }
 
