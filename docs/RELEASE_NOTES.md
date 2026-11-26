@@ -17,4 +17,4 @@ has no entries.
 ## Features
 
 * Releases
-   * CI drafts the release with the signed APK and this text; it is published by hand #
+   * CI drafts the release with the signed APK and this text; it is published by hand #15
