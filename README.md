@@ -10,9 +10,11 @@ custom model pictures and a configurable telemetry dashboard.
 > simulator. Check every model on the ground (receiver connected, propeller off) before you fly
 > with it. Firmware updates stay in the stock app.
 
-| On the AX12 | Pinned telemetry widgets (simulator) |
+| Home with pinned telemetry widgets | Flight modes, compiled into the radio's mixer |
 |---|---|
-| ![Home screen on the AX12](docs/screenshots/home-ax12.png) | ![Home screen with pinned widgets](docs/screenshots/home-widgets.png) |
+| ![Home screen with vario, altitude, battery, link, timer and flight-mode widgets](docs/screenshots/home-telemetry.png) | ![Flight modes tab with three glider modes on switch SC](docs/screenshots/flight-modes.png) |
+
+<sub>Screenshots rendered from simulated data.</sub>
 
 ## Features
 
