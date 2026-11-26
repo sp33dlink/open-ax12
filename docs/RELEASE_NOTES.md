@@ -1,6 +1,6 @@
 CI release with APK
 
-Install `open-ax12-v0.2.1.apk` from the assets below with `adb install -r` (force-stop the stock app first). If an older open-ax12 with a different signature is installed, uninstall it once first.
+**Install on the AX12:** open this page in the radio's web browser and tap `open-ax12-v0.2.1.apk` under *Assets* to download it. Open the download and, when Android asks, allow the browser to install apps ("Install unknown apps"), then tap *Install*. If an earlier open-ax12 build is already on the radio and the installation fails, uninstall it once and install again.
 
 ## What's Changed in v0.2
 * Home: cleaner stick pads by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/1
