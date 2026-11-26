@@ -1,13 +1,20 @@
-## What's Changed in v0.2.1
-* First CI release with APK
+<!--
+Text of the NEXT release only (the CI draft uses this file verbatim). Rewrite it in the
+release-prep PR from the PRs merged since the last release. Format: two sections, entries
+grouped by area, each line ending with its PR number; no authors. Leave out a section that
+has no entries.
 
-## What's Changed in v0.2
-* Home: cleaner stick pads by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/1
-* Home: show the SP button row instead of the input page selector by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/4
-* Fix model switching: never write an incomplete model to the radio by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/8
-* Home: widgets first in the centre card, no model name by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/2
-* Close the stock RadioMaster app automatically before connecting by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/3
-* Models: fix delete failing for non-active models, one-step hold-to-delete by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/5
-* Fix stick calibration: follow the radio's phases by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/6
-* Fix radio settings: safe read/write of stick mode, RF module and alarm voltage by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/7
+## Features
 
+* Home
+   * Short description #12
+
+## Bugfixes
+
+* Telemetry
+   * Short description #13
+-->
+## Features
+
+* Releases
+   * CI drafts the release with the signed APK and this text; it is published by hand #15

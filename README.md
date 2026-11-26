@@ -99,11 +99,16 @@ over the previous one. Dev builds are named `<version>-dev.<commits>+<sha>`; rel
 
 ### Releases
 
-Bump `baseVersionName` (and update `docs/RELEASE_NOTES.md`) through a pull request into `develop`,
-then merge `develop` into `master`. When `master` has a version without a tag `v<version>`, the
-Android workflow builds and signs the release APK, creates the tag and the GitHub release with
-`open-ax12.apk` attached. Do not create the tag or the release by hand: releases are
-immutable, so a release created first cannot get the APK any more.
+1. In a pull request into `develop`, bump `baseVersionName` in `app/build.gradle.kts` and rewrite
+   `docs/RELEASE_NOTES.md` with the text of the new release only: sections `## Features` and
+   `## Bugfixes`, entries grouped by area, each line ending with its PR number (`#12`).
+2. Merge `develop` into `master` through a pull request.
+3. The Android workflow sees a version without a tag `v<version>`, builds and signs the release
+   APK and creates a **draft** release with that text and `open-ax12.apk` attached. If `master`
+   changes again before publishing, the draft is replaced.
+4. Review the draft on GitHub (Releases) and publish it by hand. Publishing creates the tag and
+   makes it the latest release. Published releases are immutable, so never create a release or
+   tag for a version by hand before the draft exists.
 
 Releases need a stable signing key. It lives as four secrets in the GitHub environment `release`
 (Settings → Environments → release), which only the `master` branch may use, and only the release
