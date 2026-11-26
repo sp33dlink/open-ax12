@@ -1,0 +1,50 @@
+package org.openax12.core.model
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class AppSettingsTest {
+
+    @Test
+    fun `closing the stock app is on by default`() {
+        assertTrue(AppSettings().closeStockApp)
+    }
+
+    @Test
+    fun `settings stored by an older version decode with the stock app closing on`() {
+        val decoded = Ax12Json.decodeFromString(AppSettings.serializer(), """{"schemaVersion":1,"theme":"DARK"}""")
+        assertEquals(AppTheme.DARK, decoded.theme)
+        assertTrue(decoded.closeStockApp)
+    }
+
+    @Test
+    fun `the closing choice survives a round trip`() {
+        val original = AppSettings(closeStockApp = false)
+        val decoded = Ax12Json.decodeFromString(AppSettings.serializer(), Ax12Json.encodeToString(AppSettings.serializer(), original))
+        assertFalse(decoded.closeStockApp)
+        assertEquals(original, decoded)
+    }
+
+    @Test
+    fun `starting on boot is on and the onboarding is open by default`() {
+        assertTrue(AppSettings().startOnBoot)
+        assertFalse(AppSettings().onboardingDone)
+    }
+
+    @Test
+    fun `settings stored before the onboarding existed show it once and start on boot`() {
+        val decoded = Ax12Json.decodeFromString(AppSettings.serializer(), """{"schemaVersion":1,"closeStockApp":false}""")
+        assertFalse(decoded.onboardingDone)
+        assertTrue(decoded.startOnBoot)
+        assertFalse(decoded.closeStockApp)
+    }
+
+    @Test
+    fun `the boot and onboarding choices survive a round trip`() {
+        val original = AppSettings(startOnBoot = false, onboardingDone = true)
+        val decoded = Ax12Json.decodeFromString(AppSettings.serializer(), Ax12Json.encodeToString(AppSettings.serializer(), original))
+        assertEquals(original, decoded)
+    }
+}

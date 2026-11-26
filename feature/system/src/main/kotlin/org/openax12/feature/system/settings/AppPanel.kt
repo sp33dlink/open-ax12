@@ -25,7 +25,7 @@ import org.openax12.feature.system.common.SettingsGroup
 /** Largest auto-lock delay offered, in seconds. */
 internal const val AUTO_LOCK_MAX_SEC = 600
 
-/** App category: appearance, units, screen, touch lock, radio backend, logging. */
+/** App category: appearance, radio connection, touch lock, radio backend, logging. */
 @Composable
 internal fun AppPanel(state: SettingsUiState, onEvent: (SettingsEvent) -> Unit) {
     val app = state.app
@@ -55,6 +55,16 @@ internal fun AppPanel(state: SettingsUiState, onEvent: (SettingsEvent) -> Unit) 
             AxDivider()
             AxSettingRow(title = stringResource(R.string.app_keep_screen_on), description = stringResource(R.string.app_keep_screen_on_desc), icon = AxIcons.Visibility) {
                 AxSwitch(app.keepScreenOn, { value -> onEvent(SettingsEvent.Update { it.copy(keepScreenOn = value) }) })
+            }
+        }
+
+        SettingsGroup(stringResource(R.string.group_connection)) {
+            AxSettingRow(title = stringResource(R.string.app_close_stock), description = stringResource(R.string.app_close_stock_desc), icon = AxIcons.Link) {
+                AxSwitch(app.closeStockApp, { value -> onEvent(SettingsEvent.Update { it.copy(closeStockApp = value) }) })
+            }
+            AxDivider()
+            AxSettingRow(title = stringResource(R.string.app_start_on_boot), description = stringResource(R.string.app_start_on_boot_desc), icon = AxIcons.Play) {
+                AxSwitch(app.startOnBoot, { value -> onEvent(SettingsEvent.Update { it.copy(startOnBoot = value) }) })
             }
         }
 

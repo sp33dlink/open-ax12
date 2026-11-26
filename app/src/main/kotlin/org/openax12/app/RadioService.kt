@@ -16,7 +16,9 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.combine
@@ -34,7 +36,7 @@ import org.openax12.core.runtime.StartupState
 /**
  * Foreground service that keeps the radio connection, the runtime engine and the audio engine
  * alive while other apps are in front (SPEC section 9, design rule 2). It runs
- * `AppGraph.start()` and shows a notification with model, link and running timers.
+ * the radio connection (`RadioConnector`, which runs `AppGraph.start()`) and shows a notification with model, link and running timers.
  *
  * **Service type: `mediaPlayback`.** The service exists to play voice, vario tones, beeps and sound
  * files; that is what the type is for. It is declared in the manifest (needed from API 34, where
@@ -52,6 +54,8 @@ class RadioService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var graph: AppGraph
     private var quitting = false
+    private var connectRequested = false
+    private var bootJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -60,13 +64,70 @@ class RadioService : Service() {
         graph = applicationContext.appGraph
         createChannel()
         enterForeground(buildNotification(NotificationModel()))
-        graph.scope.launch { graph.start() }
         observeAndNotify()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_QUIT) quit()
+        when {
+            intent?.action == ACTION_QUIT -> quit()
+            intent?.getBooleanExtra(EXTRA_AFTER_BOOT, false) == true -> startAfterBoot()
+            // From the activity, or a restart of the sticky service without an intent.
+            else -> connectNow()
+        }
         return START_STICKY
+    }
+
+    /**
+     * Connects now, unless a connection was requested before. A user who opens the app while the
+     * boot start still waits does not have to wait for it: the pending boot start is dropped.
+     * Only the first call connects; later commands (every activity start sends one) do nothing.
+     */
+    private fun connectNow() {
+        bootJob?.cancel()
+        bootJob = null
+        if (connectRequested) return
+        connectRequested = true
+        applicationContext.radioConnector.connect()
+    }
+
+    /**
+     * The start after `BOOT_COMPLETED`. The stock app also starts at boot, so first wait
+     * [BOOT_START_DELAY_MS], then bring [MainActivity] to the front (the stock app is then a
+     * background process and can be closed), close the stock app when the setting says so, wait
+     * a moment and connect (the connector closes it again and retries if it survived). The
+     * settings are read again after the wait: a user who switched the boot start off in the
+     * meantime ends the service instead.
+     */
+    private fun startAfterBoot() {
+        if (connectRequested || bootJob != null) return
+        bootJob = scope.launch {
+            delay(BOOT_START_DELAY_MS)
+            val plan = bootPlan(true, graph.settings.settings.value, applicationContext.stockApp.isInstalled)
+            bootJob = null
+            if (plan == null) {
+                stopSelf()
+                return@launch
+            }
+            connectRequested = true
+            bringActivityToFront()
+            delay(BOOT_FRONT_SETTLE_MS)
+            if (plan.closeStock) applicationContext.stockApp.close()
+            applicationContext.radioConnector.connect()
+        }
+    }
+
+    /**
+     * Opens [MainActivity] from the background. Allowed on API 28 (the radio); from API 29 the
+     * system may refuse a background activity start, then the notification's "open" tap remains.
+     */
+    private fun bringActivityToFront() {
+        try {
+            startActivity(
+                Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "the activity could not be brought to the front", e)
+        }
     }
 
     override fun onDestroy() {
@@ -193,14 +254,20 @@ class RadioService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val SHUTDOWN_TIMEOUT_MS = 4_000L
         private const val ACTION_QUIT = "org.openax12.app.action.QUIT"
+        private const val EXTRA_AFTER_BOOT = "org.openax12.app.extra.AFTER_BOOT"
 
         /**
          * Starts the service as a foreground service.
          *
+         * @param afterBoot true from [BootReceiver]: the service waits [BOOT_START_DELAY_MS], brings
+         *   the activity up and connects (see [startAfterBoot]); otherwise it connects at once
          * @return false if the system refused (the caller then starts the graph itself)
          */
-        fun start(context: Context): Boolean = try {
-            ContextCompat.startForegroundService(context, Intent(context, RadioService::class.java))
+        fun start(context: Context, afterBoot: Boolean = false): Boolean = try {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, RadioService::class.java).putExtra(EXTRA_AFTER_BOOT, afterBoot),
+            )
             true
         } catch (e: Exception) {
             Log.w(TAG, "the service could not be started", e)

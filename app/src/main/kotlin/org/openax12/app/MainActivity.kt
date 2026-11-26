@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
         val graph = applicationContext.appGraph
         if (!RadioService.start(this)) {
             // No foreground service: the graph still has to start; the process is simply less protected.
-            graph.scope.launch { graph.start() }
+            applicationContext.radioConnector.connect()
         }
         requestPermissionsOnFirstStart()
 
@@ -61,6 +61,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             Ax12Root(
                 graph = graph,
+                connector = applicationContext.radioConnector,
+                stockApp = applicationContext.stockApp,
                 window = window,
                 shellActions = shellActions,
                 pendingImport = pendingImport,

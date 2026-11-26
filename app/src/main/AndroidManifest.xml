@@ -18,11 +18,20 @@
     <!-- Runtime permission from API 33; requested only behind an SDK_INT check. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Normal permission (no prompt): closes the stock RadioMaster app's background process, which
+         otherwise holds the radio's serial port. See StockApp. -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+
+    <!-- Normal permission: "Start open-ax12 when the radio boots" (BootReceiver). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Package visibility (API 30+): detecting the installed text-to-speech engine. -->
     <queries>
+        <!-- Package visibility (API 30+): is the stock RadioMaster app installed? -->
+        <package android:name="com.Flyshark.RadioMasterAX" />
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
@@ -93,6 +102,16 @@
             android:name=".RadioService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Starts the app after the radio booted when the setting is on; the receiver checks the
+             setting itself. BOOT_COMPLETED is a protected broadcast, only the system sends it. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- The FileProvider for export / share is declared by :core:data
              (authority <applicationId>.openax12.files) and merged into this manifest. -->

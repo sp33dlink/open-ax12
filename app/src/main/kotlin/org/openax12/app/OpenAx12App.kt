@@ -17,7 +17,8 @@ import org.openax12.sdk.SdkRadio
  * Application entry point. Builds the one [AppGraph] of the process; the radio backend is chosen
  * by [createRadio] (the only place in `:app` that touches `SdkRadio`, design rule 3).
  *
- * Nothing is started here: `RadioService` runs `AppGraph.start()`.
+ * Nothing is started here: `RadioService` connects through [RadioConnector], which runs
+ * `AppGraph.start()`.
  */
 class OpenAx12App : Application() {
 
@@ -25,9 +26,26 @@ class OpenAx12App : Application() {
     lateinit var graph: AppGraph
         private set
 
+    /** Handling of the stock RadioMaster app (installed? close it, open its app info). */
+    internal lateinit var stockApp: StockApp
+        private set
+
+    /** The only way the app starts the radio connection (stock-app handling included). */
+    internal lateinit var connector: RadioConnector
+        private set
+
     override fun onCreate() {
         super.onCreate()
         graph = DefaultAppGraph(this, ::createRadio)
+        stockApp = StockApp(this)
+        connector = RadioConnector(
+            scope = graph.scope,
+            stock = stockApp,
+            autoClose = { graph.settings.awaitLoaded().closeStockApp },
+            isRunning = { graph.startup.value.isRunning },
+            startRadio = { graph.start() },
+            stopRadio = { graph.radio.stop() },
+        )
     }
 
     /**
@@ -53,6 +71,14 @@ class OpenAx12App : Application() {
         const val TAG = "OpenAx12App"
     }
 }
+
+/** The [RadioConnector] of the application this context belongs to. */
+internal val android.content.Context.radioConnector: RadioConnector
+    get() = (applicationContext as OpenAx12App).connector
+
+/** The [StockApp] helper of the application this context belongs to. */
+internal val android.content.Context.stockApp: StockApp
+    get() = (applicationContext as OpenAx12App).stockApp
 
 /** The [AppGraph] of the application this context belongs to. */
 internal val android.content.Context.appGraph: AppGraph
