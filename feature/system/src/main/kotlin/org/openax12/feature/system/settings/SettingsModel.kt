@@ -53,7 +53,14 @@ internal sealed interface RadioAction {
  * (SPEC section 9: "writing to the device while linked asks for confirmation").
  */
 internal fun RadioAction.needsConfirmation(linkUp: Boolean): Boolean =
-    this is RadioAction.RestoreDefaults || linkUp
+    this is RadioAction.RestoreDefaults || this.turnsRfOff || linkUp
+
+/**
+ * True for the action that switches the RF module off. It is **always** confirmed, link or not:
+ * the radio stops transmitting ("Turn the RF module off? The radio stops transmitting").
+ */
+internal val RadioAction.turnsRfOff: Boolean
+    get() = this is RadioAction.SetRfMode && mode == RfModuleMode.OFF
 
 /** Value of the USB passthrough mode that switches it on (device-protocol defined, assumption 34). */
 internal const val USB_PASSTHROUGH_ON: Int = 1
@@ -83,6 +90,12 @@ internal data class SettingsUiState(
 ) {
     /** The radio is connected and its system configuration was read. */
     val radioReady: Boolean get() = connection.isReady && system != null
+
+    /**
+     * The radio is connected but gave no trustworthy radio-wide settings (the SDK getter is
+     * unreliable, see assumption r5): the Radio panel shows "unavailable" and changes nothing.
+     */
+    val systemUnavailable: Boolean get() = connection.isReady && system == null
 
     /**
      * Device-writing controls are enabled: `ConfigSession.updateSystemConfig` refuses while there

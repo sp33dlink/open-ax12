@@ -158,7 +158,10 @@ internal class SettingsViewModel(
     private suspend fun run(action: RadioAction): Feedback = when (action) {
         is RadioAction.SetStickMode -> session.updateSystemConfig { it.copy(stickMode = action.mode) }.toFeedback()
         is RadioAction.SetAlarmVoltage -> session.updateSystemConfig { it.copy(alarmVoltageDeciVolt = action.deciVolt) }.toFeedback()
-        is RadioAction.SetRfMode -> session.updateSystemConfig { it.copy(rfModuleMode = action.mode) }.toFeedback()
+        // `perform` is reached for "RF off" only through the confirmation dialog (see `request`).
+        is RadioAction.SetRfMode -> session.updateSystemConfig(rfOffConfirmed = action.turnsRfOff) {
+            it.copy(rfModuleMode = action.mode)
+        }.toFeedback()
         RadioAction.RestoreDefaults -> session.resetToDefaults().toFeedback()
         RadioAction.RebootRf -> if (!radio.connection.value.isReady) {
             Feedback.RADIO_NOT_READY

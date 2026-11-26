@@ -16,6 +16,10 @@ import org.junit.Before
 import org.junit.Test
 import org.openax12.core.data.ModelEntry
 import org.openax12.core.designsystem.AxToastKind
+import org.openax12.core.model.OutputChannelConfig
+import org.openax12.core.model.RfModuleMode
+import org.openax12.core.model.SystemConfig
+import org.openax12.core.model.WorkingConfig
 import org.openax12.core.runtime.SessionError
 import org.openax12.core.runtime.SessionResult
 
@@ -61,6 +65,41 @@ class ModelsViewModelTest {
         assertEquals(R.string.models_selected, message.res)
         assertEquals(listOf<Any>("Easy Star"), message.args)
         assertFalse(vm.state.value.busy)
+    }
+
+    @Test
+    fun `a model loaded while the radio's RF module is off warns that it will not transmit`() = runTest(UnconfinedTestDispatcher()) {
+        val rig = Rig(listOf(current, other))
+        rig.session.workingConfig.value = WorkingConfig(
+            channels = listOf(OutputChannelConfig(channel = 0)),
+            system = SystemConfig(rfModuleMode = RfModuleMode.OFF),
+        )
+        val vm = rig.viewModel()
+        val events = mutableListOf<ModelsEvent>()
+        backgroundScope.launch { vm.events.collect { events += it } }
+        backgroundScope.launch { vm.state.collect { } }
+
+        vm.select(other)
+
+        val messages = events.map { (it as ModelsEvent.Message).message }
+        assertEquals(listOf(R.string.models_selected, R.string.models_rf_off_warning), messages.map { it.res })
+        assertEquals(AxToastKind.Warning, messages.last().kind)
+    }
+
+    @Test
+    fun `no RF warning while the radio transmits or the setting is unknown`() = runTest(UnconfinedTestDispatcher()) {
+        for (system in listOf(SystemConfig(rfModuleMode = RfModuleMode.INTERNAL), null)) {
+            val rig = Rig(listOf(current, other))
+            rig.session.workingConfig.value = WorkingConfig(channels = listOf(OutputChannelConfig(channel = 0)), system = system)
+            val vm = rig.viewModel()
+            val events = mutableListOf<ModelsEvent>()
+            backgroundScope.launch { vm.events.collect { events += it } }
+            backgroundScope.launch { vm.state.collect { } }
+
+            vm.select(other)
+
+            assertEquals(1, events.size)
+        }
     }
 
     @Test

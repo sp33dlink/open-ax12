@@ -163,7 +163,7 @@ class ViewModelsTest {
         vm.setPreset(SourceId.THR, null)
         vm.setPreset(SourceId.SA, SwitchPosition.UP.logic)
         settle()
-        val system = session.workingConfig.value.system
+        val system = session.workingConfig.value.system!!
         assertNull(system.preFlightPreset(SourceId.THR))
         assertEquals(SwitchPosition.UP.logic, system.preFlightPreset(SourceId.SA))
         // Counters have no preset: ignored without touching the radio.

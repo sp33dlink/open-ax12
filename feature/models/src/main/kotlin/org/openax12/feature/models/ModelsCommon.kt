@@ -234,6 +234,11 @@ internal fun SessionError.messageRes(): Int = when (this) {
     SessionError.MODEL_NOT_FOUND -> R.string.models_err_not_found
     SessionError.UNSAVED_CHANGES -> R.string.models_err_unsaved
     SessionError.DEVICE_WRITE_PENDING -> R.string.models_err_write_pending
+    // Only `ConfigSession.updateSystemConfig` produces these; no model flow does.
+    SessionError.SYSTEM_CONFIG_UNAVAILABLE,
+    SessionError.SYSTEM_CONFIG_NOT_APPLIED,
+    SessionError.RF_OFF_NOT_CONFIRMED,
+    -> R.string.models_err_radio
 }
 
 /** Why an import source was rejected, for the user. */

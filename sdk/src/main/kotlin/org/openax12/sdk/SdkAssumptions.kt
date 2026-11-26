@@ -23,6 +23,9 @@ internal object SdkAssumptions {
      */
     const val DATA_DIRECTORY_NAME: String = "rmAx"
 
+    /** (r5) The SDK's global configuration file in its data directory; `lastModelFile` names the current model file. */
+    const val CONFIG_FILE_NAME: String = "RcCfgFile.json"
+
     /**
      * (#27, measured on the AX12 2026-11-21) How long `start()` waits for
      * `RC_MSGID_GETDEVCFG_END`. The AX12 answers the first configuration read and starts live

@@ -358,14 +358,25 @@ interface Radio {
     // System configuration and device control
     // ------------------------------------------------------------------------------------------
 
-    /** `rcGetRcSysConfig()`. */
+    /**
+     * The system configuration of the radio: stick mode, RF module mode, alarm voltage, pre-flight
+     * presets and the fields the SDK carries along.
+     *
+     * Null when no trustworthy values exist. The SDK backend does **not** use `rcGetRcSysConfig()`
+     * (it returns an uninitialised struct on the AX12, assumption r5): it reads the `RC_MODEL_CFG`
+     * of the current model file and returns null unless the values are plausible
+     * (`SystemConfigValidity`). Callers treat null as "unavailable" and never substitute defaults.
+     */
     suspend fun getSystemConfig(): SystemConfig?
 
     /**
      * `rcSetRcSysConfig()`. Only alarm voltage, RF module mode, stick mode and the pre-flight
      * presets are really applied by the SDK. The implementation overlays [config] onto a fresh
-     * `rcGetRcSysConfig()`; `stickMode` and `rfModuleMode` are written only when they really
+     * [getSystemConfig]; `stickMode` and `rfModuleMode` are written only when they really
      * changed (an unknown device code such as RF mode `0xFF` survives, see "Read-modify-write").
+     * Returns false when the current values are not trustworthy or the result would not be
+     * plausible. The SDK setter damages curve 0; the SDK backend repairs it (assumption r6) and
+     * returns false, leaving the working config to be discarded, if it cannot.
      *
      * Callers must build [config] from a fresh [getSystemConfig] inside the same edit — never
      * from a cached `WorkingConfig.system` or from `SystemConfig()` defaults. The change is

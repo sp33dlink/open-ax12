@@ -89,6 +89,10 @@ All app-side, evaluated on every live tick inside the foreground service.
 ## 8. System (`:feature:system`) — not per model
 
 - Radio: stick mode, alarm voltage, RF module mode (internal/external/off), stick calibration (start/stop + state), reboot RF module, USB serial passthrough, restore defaults (double confirm).
+  - **Radio-wide settings.** Stick mode, RF module mode and alarm voltage belong to the radio, not to a model, although the SDK stores them in every model file. They are read from the current model file (`RC_MODEL_CFG`), never from `rcGetRcSysConfig()`, which returns garbage on the AX12 (assumption r5). A value that is not plausible (`SystemConfigValidity`) is not shown: the panel says "unavailable" and nothing can be changed or written.
+  - **Changing one** writes it to the radio (setter + device write, then the radio must report the new value) and into every other model of the library (SDK file and `model.json` reference copy). `modelMatchId`, failsafe and pre-flight presets stay per model. A model that is loaded, restored or imported with other radio-wide values gets the radio's values first, so selecting a model never changes the radio's stick mode, RF module or alarm voltage.
+  - **RF off** always asks "Turn the RF module off? The radio stops transmitting." (linked or not); the session refuses it without that confirmation. Loading a model while the radio's RF module is off shows a warning that the model will not transmit.
+  - A write is refused (clear message, nothing written) when the current values cannot be read or are implausible, when the new values are implausible, or while the model has unsaved changes or is not on the radio yet.
 - ELRS: parameter menu browser (request menu, folders, option/number items, commands, ack), link status (good/bad packets, model mismatch).
 - Pre-flight check overview and "skip" action; per-model checklist text.
 - App: theme, language of speech, volumes, units (metric/imperial), haptics, keep screen on, touch-lock behaviour, radio backend (Auto / SDK / Simulator), storage location info, backup/restore of the whole library (zip).

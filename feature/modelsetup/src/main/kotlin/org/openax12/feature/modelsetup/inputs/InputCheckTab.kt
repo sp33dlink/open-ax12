@@ -74,7 +74,7 @@ internal data class InputCheckState(val ready: Boolean = false, val rows: List<I
 /** Builds the rows of [config]: every enabled source with its preset. */
 internal fun inputRows(config: WorkingConfig): List<InputRowUi> =
     config.sources.filter { it.enabled }.map { info ->
-        InputRowUi(info, config.system.preFlightPreset(info.id), info.id.hasPreFlightCheck)
+        InputRowUi(info, config.system?.preFlightPreset(info.id), info.id.hasPreFlightCheck)
     }
 
 /** The preset a source gets when its check is switched on: throttle low, switches up, the rest centred. */

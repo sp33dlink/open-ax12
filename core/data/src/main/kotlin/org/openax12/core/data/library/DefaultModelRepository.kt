@@ -25,6 +25,7 @@ import org.openax12.core.data.ModelEntry
 import org.openax12.core.data.ModelRepository
 import org.openax12.core.data.ModelSnapshot
 import org.openax12.core.data.PictureCropRect
+import org.openax12.core.data.RadioWideReport
 import org.openax12.core.data.ReconcileReport
 import org.openax12.core.data.SnapshotReason
 import org.openax12.core.data.StorageInfo
@@ -33,10 +34,17 @@ import org.openax12.core.data.storage.StorageLocator
 import org.openax12.core.model.AppDispatchers
 import org.openax12.core.model.MODEL_PICTURE_FILE_NAME
 import org.openax12.core.model.ModelBlueprint
+import org.openax12.core.model.ModelConfigFile
 import org.openax12.core.model.ModelExtras
 import org.openax12.core.model.ModelExtrasCodec
 import org.openax12.core.model.ModelInfo
 import org.openax12.core.model.ModelType
+import org.openax12.core.model.RadioWidePatch
+import org.openax12.core.model.RawSystemFields
+import org.openax12.core.model.RfModuleMode
+import org.openax12.core.model.StickMode
+import org.openax12.core.model.SystemConfig
+import org.openax12.core.model.SystemConfigValidity
 import org.openax12.core.radio.ConnectionState
 import org.openax12.core.radio.Radio
 import org.openax12.core.radio.RadioEvent
@@ -297,6 +305,39 @@ internal class DefaultModelRepository(
         loadModelLocked(id)
     }
 
+    // -- Radio-wide settings --------------------------------------------------------------------
+
+    override suspend fun applyRadioWideSettings(patch: RadioWidePatch): DataResult<RadioWideReport> = locked {
+        patch.problem()?.let { return@locked failure(DataError.INVALID_FILE, it) }
+        if (patch.isEmpty) return@locked DataResult.Success(RadioWideReport())
+        if (!radioReady()) return@locked notReady()
+        val updated = ArrayList<String>()
+        val unchanged = ArrayList<String>()
+        val failed = ArrayList<String>()
+        for (entry in index.entries.toList()) {
+            if (entry.id == index.currentId) {
+                unchanged += entry.name
+                continue
+            }
+            val info = sdkModel(entry)
+            if (info == null) {
+                failed += "${entry.name}: unknown SDK model"
+                continue
+            }
+            when (val outcome = patchSdkFileLocked(entry, info, patch::differingFrom)) {
+                Patched.Changed -> {
+                    syncFolderFromSdk(entry, info)
+                    updated += entry.name
+                }
+                Patched.Unchanged -> unchanged += entry.name
+                is Patched.Failed -> failed += "${entry.name}: ${outcome.detail}"
+            }
+        }
+        saveIndex()
+        publish()
+        DataResult.Success(RadioWideReport(updated = updated, unchanged = unchanged, failed = failed))
+    }
+
     // -- Extras ---------------------------------------------------------------------------------
 
     override suspend fun updateExtras(transform: (ModelExtras) -> ModelExtras): ModelExtras = locked { updateCurrentExtrasLocked(transform) }
@@ -515,9 +556,11 @@ internal class DefaultModelRepository(
         if (!radioReady()) return@locked notReady()
         val modelsDir = modelsDir() ?: return@locked storageFailure()
 
+        // Imported models take over the radio's stick mode, RF module and alarm voltage.
+        val modelBytes = harmonizedModelBytes(import.model, currentRadioWide())
         val temp = newTempFile("import")
         val info = try {
-            temp.writeBytes(import.model)
+            temp.writeBytes(modelBytes)
             importIntoSdk(temp, target)
         } catch (e: IOException) {
             return@locked failure(DataError.IO, e.message.orEmpty())
@@ -528,7 +571,7 @@ internal class DefaultModelRepository(
         val entry = SyncEntry(id = newId(), name = target, folder = target, sdkFile = info.filePath, modelMatch = info.modelMatch)
         try {
             val folder = FileOps.ensureDir(File(modelsDir, entry.folder))
-            if (writeModelFileFromSdk(info, folder) == null) FileOps.writeAtomic(File(folder, SnapshotStore.MODEL_FILE), import.model)
+            if (writeModelFileFromSdk(info, folder) == null) FileOps.writeAtomic(File(folder, SnapshotStore.MODEL_FILE), modelBytes)
             val picture = import.picture?.takeIf(pictures::isImage)
             if (picture != null) FileOps.writeAtomic(File(folder, MODEL_PICTURE_FILE_NAME), picture)
             val extras = import.extras?.copy(pictureFile = if (picture != null) MODEL_PICTURE_FILE_NAME else null)
@@ -570,6 +613,8 @@ internal class DefaultModelRepository(
         if (!radioReady()) return@locked notReady()
         val info = sdkModel(entry) ?: return@locked failure(DataError.RADIO_FAILED, "unknown SDK model")
         val isCurrent = entry.id == index.currentId
+        // Read the radio's values before the current model's file is replaced.
+        val wide = currentRadioWide()
         try {
             snapshotAppCopy(entry, info, folder, SnapshotReason.BEFORE_RESTORE, protect = snapshot.id)
         } catch (e: IOException) {
@@ -580,6 +625,7 @@ internal class DefaultModelRepository(
             return@locked failure(DataError.RADIO_FAILED, "rcImportModelCfg failed")
         }
         val newInfo = enforceName(info.filePath, entry.name) ?: info
+        wide?.let { patchSdkFileLocked(entry, newInfo, patchTo(it)) }
         var updated = entry.copy(sdkFile = newInfo.filePath, modelMatch = newInfo.modelMatch)
         try {
             if (writeModelFileFromSdk(newInfo, folder) == null) FileOps.copyFile(modelFile, File(folder, SnapshotStore.MODEL_FILE))
@@ -979,11 +1025,14 @@ internal class DefaultModelRepository(
             return failure(DataError.IO, "safety snapshot failed: ${e.message.orEmpty()}")
         }
         val isCurrent = entry.id == index.currentId
+        // Read the radio's values before the current model's file is replaced.
+        val wide = currentRadioWide()
         if (isCurrent) markPending(entry.id)
         if (!radio.importModel(File(folder, SnapshotStore.MODEL_FILE).absolutePath, info.filePath)) {
             return failure(DataError.RADIO_FAILED, "rcImportModelCfg failed")
         }
         val newInfo = enforceName(info.filePath, entry.name) ?: info
+        wide?.let { patchSdkFileLocked(entry, newInfo, patchTo(it)) }
         var updated = entry.copy(sdkFile = newInfo.filePath, modelMatch = newInfo.modelMatch)
         try {
             writeModelFileFromSdk(newInfo, folder)
@@ -1097,6 +1146,10 @@ internal class DefaultModelRepository(
         val entry = index.entry(modelId) ?: return failure(DataError.NOT_FOUND, modelId)
         if (!radioReady()) return notReady()
         val info = sdkModel(entry) ?: return failure(DataError.RADIO_FAILED, "unknown SDK model")
+        // Stick mode, RF module and alarm voltage belong to the radio, not to the model: bring the
+        // model to the radio's values before the radio sees it. Read them first, while the current
+        // model is still loaded. Reloading the current model needs nothing (it is the source).
+        if (entry.id != index.currentId) currentRadioWide()?.let { harmonizeLocked(entry, info, it) }
         val before = index
         val epochBefore = pendingEpoch
         // Persist the pending state before the SDK is touched: if the app dies in between, the
@@ -1226,6 +1279,106 @@ internal class DefaultModelRepository(
         saveIndex()
         publish()
         return entryResult(entry.id)
+    }
+
+    // -- Radio-wide settings (internals) --------------------------------------------------------
+
+    /** Result of [patchSdkFileLocked]. */
+    private sealed interface Patched {
+        data object Changed : Patched
+        data object Unchanged : Patched
+        data class Failed(val detail: String) : Patched
+    }
+
+    /**
+     * The radio-wide values the radio has **right now** (read through the current model file by
+     * the radio backend), or null when the radio is not ready or has no trustworthy values. Must be
+     * read before the current model's file is replaced or another model is loaded.
+     */
+    private suspend fun currentRadioWide(): SystemConfig? {
+        if (!radioReady()) return null
+        val system = radio.getSystemConfig() ?: return null
+        return system.takeIf { SystemConfigValidity.problem(it) == null }
+    }
+
+    /**
+     * The patch that gives a model file with the given fields the radio-wide values of [wide].
+     * Fields are compared as mapped values, so an RF code the app only keeps verbatim (255) is not
+     * rewritten.
+     */
+    private fun patchTo(wide: SystemConfig): (RawSystemFields) -> RadioWidePatch = { fields ->
+        RadioWidePatch(
+            stickMode = wide.stickMode.sdk.takeIf { StickMode.fromSdk(fields.stickMode) != wide.stickMode },
+            rfModuleMode = wide.rfModuleMode.sdk.takeIf { RfModuleMode.fromSdk(fields.rfModuleMode) != wide.rfModuleMode },
+            alarmVoltageDeciVolt = wide.alarmVoltageDeciVolt.takeIf { it != fields.alarmVoltageDeciVolt },
+        )
+    }
+
+    /**
+     * Rewrites the SDK file of [info] with the radio-wide fields chosen by [patchFor]: export,
+     * patch the JSON text, `rcImportModelCfg` back. Nothing is written when the file already has
+     * the values. The model must not be the one the radio is running (its file is the radio's).
+     */
+    private suspend fun patchSdkFileLocked(entry: SyncEntry, info: ModelInfo, patchFor: (RawSystemFields) -> RadioWidePatch): Patched {
+        val export = exportSdkFile(info.filePath) ?: return Patched.Failed("cannot export the SDK file")
+        val text = try {
+            export.readText(Charsets.UTF_8)
+        } catch (e: IOException) {
+            return Patched.Failed("cannot read the exported file: ${e.message.orEmpty()}")
+        } finally {
+            export.delete()
+        }
+        val fields = ModelConfigFile.readSystem(text) ?: return Patched.Failed("the SDK file has no system fields")
+        val patch = patchFor(fields)
+        if (patch.isEmpty) return Patched.Unchanged
+        val patched = ModelConfigFile.patch(text, patch) ?: return Patched.Failed("the radio-wide values cannot be written into the file")
+        val temp = try {
+            newTempFile("radiowide")
+        } catch (e: IOException) {
+            return Patched.Failed("no temporary file: ${e.message.orEmpty()}")
+        }
+        try {
+            temp.writeText(patched, Charsets.UTF_8)
+            if (!radio.importModel(temp.absolutePath, info.filePath)) return Patched.Failed("rcImportModelCfg failed")
+        } catch (e: IOException) {
+            return Patched.Failed(e.message.orEmpty())
+        } finally {
+            temp.delete()
+        }
+        enforceName(info.filePath, entry.name)
+        return Patched.Changed
+    }
+
+    /**
+     * Refreshes the library reference copy of [entry] from its (just changed) SDK file, unless the
+     * folder was modified outside the app: that is the user's decision (`externalChanges`).
+     */
+    private suspend fun syncFolderFromSdk(entry: SyncEntry, info: ModelInfo) {
+        val folder = folderOf(entry)?.takeIf { it.isDirectory } ?: return
+        val known = index.entry(entry.id) ?: entry
+        val modelFile = File(folder, SnapshotStore.MODEL_FILE)
+        if (known.modelHash.isNotEmpty() && FileOps.sha256(modelFile) != known.modelHash) return
+        runCatching {
+            if (writeModelFileFromSdk(info, folder) != null) adopt(stamp(known, folder), info)
+        }
+    }
+
+    /**
+     * Applies the radio-wide values of [wide] to the model [entry] before it is loaded: its SDK
+     * file and its library copy. A failure is not fatal; the model is loaded as it is.
+     */
+    private suspend fun harmonizeLocked(entry: SyncEntry, info: ModelInfo, wide: SystemConfig) {
+        if (patchSdkFileLocked(entry, info, patchTo(wide)) == Patched.Changed) syncFolderFromSdk(entry, info)
+    }
+
+    /** [model] (the text of a model file) with the radio-wide values of [wide]; unchanged if that is not possible. */
+    private fun harmonizedModelBytes(model: ByteArray, wide: SystemConfig?): ByteArray {
+        if (wide == null) return model
+        val text = model.toString(Charsets.UTF_8)
+        val fields = ModelConfigFile.readSystem(text) ?: return model
+        val patch = patchTo(wide)(fields)
+        if (patch.isEmpty) return model
+        return ModelConfigFile.patch(text, patch)?.toByteArray(Charsets.UTF_8) ?: model
     }
 
     // -- SDK access -----------------------------------------------------------------------------

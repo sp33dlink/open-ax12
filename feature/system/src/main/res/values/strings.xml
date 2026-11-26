@@ -11,6 +11,9 @@
     <string name="fb_unsaved_changes">Save or discard the model changes first (Model setup, Save)</string>
     <string name="fb_device_write_pending">The model is not written to the radio yet. Save it first</string>
     <string name="fb_busy">Another operation is still running</string>
+    <string name="fb_system_unavailable">The radio settings cannot be read reliably. Nothing was changed</string>
+    <string name="fb_system_not_applied">The radio did not take the change. See Diagnostics for details</string>
+    <string name="fb_rf_off_unconfirmed">Turning the RF module off needs a confirmation</string>
     <string name="fb_timeout">The radio did not answer in time</string>
     <string name="fb_failed">That did not work. See Diagnostics for details</string>
     <string name="fb_rejected">The radio rejected the change</string>
@@ -71,6 +74,8 @@
     <!-- Radio panel -->
     <string name="radio_unsaved_notice">The model has unsaved changes. Save or discard them in Model setup before changing system settings.</string>
     <string name="radio_not_in_sync_notice">The loaded model is not written to the radio yet. Save it in Model setup first.</string>
+    <string name="radio_system_unavailable">The stick mode, alarm voltage and RF module of this radio cannot be read reliably, so they are not shown and cannot be changed. Nothing was written.</string>
+    <string name="radio_value_unavailable">Unavailable</string>
     <string name="radio_stick_mode">Stick mode</string>
     <string name="radio_stick_mode_desc">Left stick: %1$s / %2$s, right stick: %3$s / %4$s (vertical / horizontal)</string>
     <string name="radio_mode_1">Mode 1</string>
@@ -100,6 +105,10 @@
     <string name="restore_message">This replaces the configuration in the radio, including the mixes of the current model, with the factory defaults. A snapshot of the model stays available in the model library.</string>
     <string name="restore_second">This cannot be undone from the radio. If the receiver link is up, the model may stop responding as configured. Make sure the model is safe, then hold the button.</string>
     <string name="restore_hold">Hold to restore</string>
+    <string name="rf_off_title">Turn the RF module off?</string>
+    <string name="rf_off_message">The radio stops transmitting.</string>
+    <string name="rf_off_message_linked">The radio stops transmitting. The receiver link is up: the model loses control as soon as you continue.</string>
+    <string name="rf_off_confirm">Turn off</string>
     <string name="linked_title">The radio is linked to a receiver</string>
     <string name="linked_message">%1$s while the model is connected can interrupt control of the aircraft. Continue only if the model is safe.</string>
     <string name="linked_confirm">Continue</string>

@@ -433,10 +433,11 @@ data class ModelInfo(
  * @property revision the `Radio.configRevision` this copy was read at
  * @property mixes all mix lines of all channels, ordered by channel then [MixLine.mixIndex]
  * @property dualRates all slots of all channels ([CHANNEL_COUNT] × [DR_SLOTS]), disabled ones included
- * @property system the system configuration as read. It is only real when [isEmpty] is false
- *   (`Radio.readWorkingConfig` never substitutes defaults: without a readable system config the
- *   whole result is [EMPTY]). Do not write it back from here — `Radio.setSystemConfig` callers
- *   start from a fresh `Radio.getSystemConfig()`.
+ * @property system the system configuration as read, or null when the radio could not give a
+ *   trustworthy one (`rcGetRcSysConfig()` is unreliable, assumption r5; the rest of the working
+ *   configuration is still valid then and the System screen shows "unavailable"). Defaults are
+ *   never substituted. Do not write it back from here — `Radio.setSystemConfig` callers start from
+ *   a fresh `Radio.getSystemConfig()`.
  */
 @Serializable
 data class WorkingConfig(
@@ -448,7 +449,7 @@ data class WorkingConfig(
     val dualRates: List<DualRateSlot> = emptyList(),
     val timers: List<TimerConfig> = emptyList(),
     val counters: List<TimerConfig> = emptyList(),
-    val system: SystemConfig = SystemConfig(),
+    val system: SystemConfig? = null,
 ) {
     /** True for the placeholder used while the radio is not usable (no channels were read). */
     val isEmpty: Boolean get() = channels.isEmpty()
