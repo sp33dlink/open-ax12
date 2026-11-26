@@ -27,8 +27,30 @@ class ModelLogicTest {
     }
 
     @Test
+    fun `switch position maps to the logic values the AX12 reports`() {
+        // Verified on the radio (assumption 3): physical up = +100 %, mid = 0 %, down = -100 %.
+        assertEquals(100, SwitchPosition.UP.logic)
+        assertEquals(0, SwitchPosition.MID.logic)
+        assertEquals(-100, SwitchPosition.DOWN.logic)
+        assertEquals(SwitchPosition.UP, SwitchPosition.fromLogic(100))
+        assertEquals(SwitchPosition.UP, SwitchPosition.fromLogic(51))
+        assertEquals(SwitchPosition.MID, SwitchPosition.fromLogic(50))
+        assertEquals(SwitchPosition.MID, SwitchPosition.fromLogic(0))
+        assertEquals(SwitchPosition.MID, SwitchPosition.fromLogic(-50))
+        assertEquals(SwitchPosition.DOWN, SwitchPosition.fromLogic(-51))
+        assertEquals(SwitchPosition.DOWN, SwitchPosition.fromLogic(-100))
+        // Round trip, and the ascending order custom curves need (down first).
+        for (position in SwitchPosition.entries) assertEquals(position, SwitchPosition.fromLogic(position.logic))
+        assertEquals(listOf(SwitchPosition.DOWN, SwitchPosition.MID, SwitchPosition.UP), SwitchPosition.byLogic)
+        // A condition built for a position matches the value the switch reports there.
+        assertEquals(CompareOp.EQUAL, SwitchCondition.at(SourceId.SA, SwitchPosition.UP).op)
+        assertEquals(100, SwitchCondition.at(SourceId.SA, SwitchPosition.UP).value)
+        assertEquals(-100, SwitchCondition.at(SourceId.SA, SwitchPosition.DOWN).value)
+    }
+
+    @Test
     fun `switch condition evaluates against live logic values`() {
-        val live = LiveSnapshot.of(logic = mapOf(SourceId.SA to 100, SourceId.THR to -95, SourceId.SB to -100))
+        val live = LiveSnapshot.of(logic = mapOf(SourceId.SA to -100, SourceId.THR to -95, SourceId.SB to 100))
         assertTrue(SwitchCondition.at(SourceId.SA, SwitchPosition.DOWN).isActive(live))
         assertFalse(SwitchCondition.at(SourceId.SA, SwitchPosition.MID).isActive(live))
         assertTrue(SwitchCondition(SourceId.THR, CompareOp.LESS, -90).isActive(live))
@@ -80,10 +102,10 @@ class ModelLogicTest {
                 FlightModeConfig("Landing", SwitchPosition.DOWN),
             ),
         )
-        assertEquals(1, config.activeModeIndex(LiveSnapshot.of(logic = mapOf(SourceId.SC to -100))))
+        assertEquals(1, config.activeModeIndex(LiveSnapshot.of(logic = mapOf(SourceId.SC to 100))))
         assertEquals(0, config.activeModeIndex(LiveSnapshot.of(logic = mapOf(SourceId.SC to 0))))
-        assertEquals(2, config.activeModeIndex(LiveSnapshot.of(logic = mapOf(SourceId.SC to 100))))
-        assertEquals(0, config.copy(enabled = false).activeModeIndex(LiveSnapshot.of(logic = mapOf(SourceId.SC to 100))))
+        assertEquals(2, config.activeModeIndex(LiveSnapshot.of(logic = mapOf(SourceId.SC to -100))))
+        assertEquals(0, config.copy(enabled = false).activeModeIndex(LiveSnapshot.of(logic = mapOf(SourceId.SC to -100))))
     }
 
     @Test

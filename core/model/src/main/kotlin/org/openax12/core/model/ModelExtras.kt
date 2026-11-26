@@ -24,13 +24,11 @@ enum class HomeCenterCard {
  *
  * @property centerCard the face of the flip card the user chose last; null = no choice yet, see
  *   [resolvedCenterCard]
- * @property inputPage last selected page of the input / switch area (0-based)
  * @property channelPage last selected page of the channel list (0 = CH01–08, 1 = CH09–16)
  */
 @Serializable
 data class HomePreferences(
     val centerCard: HomeCenterCard? = null,
-    val inputPage: Int = 0,
     val channelPage: Int = 0,
 ) {
     /**

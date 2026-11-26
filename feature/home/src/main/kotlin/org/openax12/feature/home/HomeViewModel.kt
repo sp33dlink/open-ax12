@@ -29,9 +29,6 @@ internal sealed interface HomeAction {
     /** Show the channel list page [page] (0 = CH01-08). */
     data class SelectChannelPage(val page: Int) : HomeAction
 
-    /** Show input panel page [page]. */
-    data class SelectInputPage(val page: Int) : HomeAction
-
     /** Open the timer settings (tap on a timer row or its gear). */
     data object OpenTimerSettings : HomeAction
 
@@ -44,7 +41,7 @@ internal sealed interface HomeAction {
  *
  * It only derives the slowly changing structure of the screen ([HomeUiState]); live values are
  * read from `Radio.live` in the composables that draw them. Remembered choices (flipped centre
- * card, selected pages) are written to the extras of the current model at once and are not part
+ * card, channel page) are written to the extras of the current model at once and are not part
  * of the unsaved-changes state.
  */
 internal class HomeViewModel(
@@ -68,7 +65,6 @@ internal class HomeViewModel(
         when (action) {
             HomeAction.ToggleCenterCard -> viewModelScope.launch { models.updateExtras(::toggleCenterCard) }
             is HomeAction.SelectChannelPage -> updateHome { it.copy(channelPage = action.page.coerceIn(0, CHANNEL_PAGES - 1)) }
-            is HomeAction.SelectInputPage -> updateHome { it.copy(inputPage = action.page.coerceAtLeast(0)) }
             is HomeAction.ResetTimer -> viewModelScope.launch { runtime.resetTimer(action.index) }
             HomeAction.OpenTelemetry, HomeAction.OpenTimerSettings -> Unit
         }

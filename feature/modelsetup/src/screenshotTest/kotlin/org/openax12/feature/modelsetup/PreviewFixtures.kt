@@ -52,10 +52,10 @@ internal val SampleLogic: Map<SourceId, Int> = mapOf(
     SourceId.RUD to 0,
     SourceId.pot(1) to 40,
     SourceId.slider(1) to -30,
-    SourceId.SA to -100,
-    SourceId.SB to 0,
-    SourceId.SC to 100,
-    SourceId.SF to 100,
+    SourceId.SA to SwitchPosition.UP.logic,
+    SourceId.SB to SwitchPosition.MID.logic,
+    SourceId.SC to SwitchPosition.DOWN.logic,
+    SourceId.SF to SwitchPosition.DOWN.logic,
 )
 
 private fun source(index: Int): SourceInfo {

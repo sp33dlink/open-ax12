@@ -106,9 +106,9 @@ internal object CsvLogFormat {
             append(',')
             append(
                 when (SwitchPosition.fromLogic(live.logicAt(index))) {
-                    SwitchPosition.UP -> -1
+                    SwitchPosition.UP -> 1
                     SwitchPosition.MID -> 0
-                    SwitchPosition.DOWN -> 1
+                    SwitchPosition.DOWN -> -1
                 },
             )
         }

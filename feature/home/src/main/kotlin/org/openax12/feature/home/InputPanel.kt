@@ -3,74 +3,44 @@ package org.openax12.feature.home
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.openax12.core.designsystem.ArcGauge
-import org.openax12.core.designsystem.AxBadge
-import org.openax12.core.designsystem.AxIcon
-import org.openax12.core.designsystem.AxIcons
 import org.openax12.core.designsystem.AxTheme
-import org.openax12.core.designsystem.PageSelector
 import org.openax12.core.designsystem.SwitchPill
+import org.openax12.core.designsystem.axRaised
 import org.openax12.core.model.LiveSnapshot
-import org.openax12.core.model.LogicalSwitchStates
-import org.openax12.core.runtime.ActiveFlightMode
+import org.openax12.core.model.SourceId
+import org.openax12.core.model.SpButtonBar
 
 /**
- * The lower part of the right column: the current page (switch pills above arc gauges, or the
- * flight-mode page) and the page selector. Switch and knob values are read in the draw phase.
+ * The lower part of the right column, one page as in the stock app: switch pills above the arc
+ * gauges, and under them the six-button row of the SP input. Switch, knob and SP values are read
+ * in the draw phase (or, for the SP row, in a derived state that changes only when the button does).
  */
 @Composable
 internal fun InputPanel(
-    pages: List<HomePage>,
-    pageIndex: Int,
-    onSelectPage: (Int) -> Unit,
+    state: InputPanelState,
     live: () -> LiveSnapshot,
-    flightMode: () -> ActiveFlightMode,
-    logicalSwitches: () -> LogicalSwitchStates,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-            when (val page = pages.getOrNull(pageIndex)) {
-                is HomePage.Controls -> ControlsPage(page, live)
-                is HomePage.Modes -> ModesPage(page, flightMode, logicalSwitches)
-                null -> Unit
-            }
-        }
-        if (pages.size > 1) {
-            PageSelector(
-                pageCount = pages.size,
-                selectedPage = pageIndex,
-                onSelect = onSelectPage,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-    }
-}
-
-/** Up to six switch pills and two arc gauges. */
-@Composable
-private fun ControlsPage(page: HomePage.Controls, live: () -> LiveSnapshot) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -80,7 +50,7 @@ private fun ControlsPage(page: HomePage.Controls, live: () -> LiveSnapshot) {
                 .height(SWITCH_ROW_HEIGHT),
             horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
         ) {
-            for (item in page.switches) {
+            for (item in state.switches) {
                 SwitchPill(position = { live().logic(item.source) }, label = item.label)
             }
         }
@@ -88,7 +58,7 @@ private fun ControlsPage(page: HomePage.Controls, live: () -> LiveSnapshot) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
         ) {
-            for (item in page.knobs) {
+            for (item in state.knobs) {
                 ArcGauge(
                     value = { knobPercent(live().logic(item.source), item.range) },
                     label = item.label,
@@ -96,103 +66,54 @@ private fun ControlsPage(page: HomePage.Controls, live: () -> LiveSnapshot) {
                 )
             }
         }
+        if (state.showSpButtons) SpButtonRow(live = live, modifier = Modifier.fillMaxWidth())
     }
 }
 
 private val SWITCH_ROW_HEIGHT = 58.dp
 
-/** Active flight mode and the configured logical switches. */
+/** Height of the SP button row; the pills inside are 20 dp high. */
+private val SP_ROW_HEIGHT = 28.dp
+
+/**
+ * The SP input as the stock app shows it: the pills "1" to "6", the active one filled with the accent
+ * colour. SP is a button bar with exactly one button active at all times, so this is display only:
+ * not tappable, no ripple, not a tab. Which button is active comes from [SpButtonBar].
+ *
+ * The active button is a derived state: the row recomposes when the button changes (a few times per
+ * flight), not on every live frame.
+ */
 @Composable
-private fun ModesPage(
-    page: HomePage.Modes,
-    flightMode: () -> ActiveFlightMode,
-    logicalSwitches: () -> LogicalSwitchStates,
-) {
+private fun SpButtonRow(live: () -> LiveSnapshot, modifier: Modifier = Modifier) {
+    val active by remember(live) { derivedStateOf { SpButtonBar.buttonFromLogic(live().logic(SourceId.SP)) } }
     val colors = AxTheme.colors
-    val type = AxTheme.typography
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
+    val description = stringResource(R.string.home_cd_sp_button_active, active)
+    Row(
+        modifier = modifier
+            .height(SP_ROW_HEIGHT)
+            .semantics(mergeDescendants = true) { contentDescription = description },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AxIcon(AxIcons.FlightMode, contentDescription = null, tint = colors.accent, size = 20.dp)
-            Text(
-                text = stringResource(R.string.home_flight_mode),
-                style = type.label,
-                color = colors.textMuted,
-            )
-        }
-        FlightModeName(page.flightModesUsed, flightMode)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AxIcon(AxIcons.Logic, contentDescription = null, tint = colors.accent, size = 20.dp)
-            Text(
-                text = stringResource(R.string.home_logic_switches),
-                style = type.label,
-                color = colors.textMuted,
-                modifier = Modifier.weight(1f),
-            )
-            if (page.hiddenLogicSwitches > 0) {
-                Text(
-                    text = stringResource(R.string.home_logic_switches_more, page.hiddenLogicSwitches),
-                    style = type.labelSmall,
-                    color = colors.textFaint,
-                    maxLines = 1,
-                )
-            }
-        }
-        if (page.logicSwitches.isEmpty()) {
-            Text(
-                text = stringResource(R.string.home_logic_switches_none),
-                style = type.body,
-                color = colors.textFaint,
-            )
-        } else {
-            LogicSwitchGrid(page, logicalSwitches)
-        }
-    }
-}
-
-/** The mode name; recomposes on its own when the mode changes. */
-@Composable
-private fun FlightModeName(used: Boolean, flightMode: () -> ActiveFlightMode) {
-    val name = if (used) flightMode().name else ""
-    Text(
-        text = when {
-            !used -> stringResource(R.string.home_flight_mode_none)
-            name.isBlank() -> "-"
-            else -> name
-        },
-        style = AxTheme.typography.title,
-        color = if (used) AxTheme.colors.text else AxTheme.colors.textFaint,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
-
-/** Chips of the configured logical switches, lit while a switch is on. Recomposes only when a state changes. */
-@Composable
-private fun LogicSwitchGrid(page: HomePage.Modes, logicalSwitches: () -> LogicalSwitchStates) {
-    val states = logicalSwitches()
-    val colors = AxTheme.colors
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        for (item in page.logicSwitches) {
-            val on = states[item.index]
+        for (button in 1..SpButtonBar.BUTTON_COUNT) {
+            val selected = button == active
             Box(
                 modifier = Modifier
-                    .size(width = 30.dp, height = 22.dp)
-                    .clip(RoundedCornerShape(11.dp))
-                    .drawBehind { drawRect(if (on) colors.teal else colors.track) },
+                    .size(width = 28.dp, height = 20.dp)
+                    .axRaised(
+                        cornerRadius = 10.dp,
+                        elevation = 2.dp,
+                        color = if (selected) colors.accent else colors.surfaceRaised,
+                    )
+                    .clearAndSetSemantics { },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = item.label,
-                    style = AxTheme.typography.labelSmall,
-                    color = if (on) colors.onAccent else colors.textMuted,
+                    text = button.toString(),
+                    style = AxTheme.typography.label,
+                    color = if (selected) colors.onAccent else colors.text,
                     maxLines = 1,
                     overflow = TextOverflow.Clip,
-                    textAlign = TextAlign.Center,
                 )
             }
         }

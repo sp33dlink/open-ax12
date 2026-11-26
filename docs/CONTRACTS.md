@@ -7,7 +7,7 @@ Conventions used everywhere:
 
 - Channel, curve, slot, timer, mix, logical-switch and special-function indices are **0-based**
   (CH01 = 0, L1 = 0, SF1 = 0). Percentages are −100..+100.
-- Source indices are `SourceId` (0 Rud … 41 CNT6). Switch logic values are −100 / 0 / +100 (up / mid / down).
+- Source indices are `SourceId` (0 Rud … 41 CNT6). Switch logic values are +100 / 0 / −100 (up / mid / down).
 - Telemetry hashes are `Long`. Timestamps named `…Ms` are monotonic (`elapsedRealtime` base)
   unless documented as wall clock (`timeMs`, `atMs`, `lastUsedMs`, `startedMs`).
 - Nothing throws for expected failures: `Radio` returns `null` / `false` / empty, the data layer
@@ -72,7 +72,7 @@ runtime UI requests, applying settings).
 | Sources.kt | `SourceKind` | STICK, POT, SLIDER, SWITCH, COUNTER |
 | Sources.kt | `Sources` | Int constants `RUD`=0 … `CNT6`=41, ranges, default names |
 | Sources.kt | `SourceId` | Value class over the SDK source index; kind, default name, `fromName`, `pot/slider/switch/counter` |
-| Sources.kt | `SwitchPosition` | UP (−100) / MID (0) / DOWN (+100), `fromLogic` |
+| Sources.kt | `SwitchPosition` | UP (+100) / MID (0) / DOWN (−100), `fromLogic`, `byLogic` (ascending, for curves) |
 | SdkEnums.kt | `CompareOp` | DISABLED 0, GREATER 1, EQUAL 2, LESS 3 (`sdk`, `fromSdk`) |
 | SdkEnums.kt | `MixMode` | REPLACE 0, ADD 1, MULTIPLY 2 |
 | SdkEnums.kt | `CurveType` | NONE, DIFF, EXPO, FUNC, CUSTOM |

@@ -22,7 +22,7 @@ import org.openax12.core.designsystem.AxTheme
  * @property good healthy state (full battery, good link, climb, running)
  * @property warn warning state
  * @property alarm alarm state and the lost marker
- * @property switchUp / [switchDown] the stock colours of a switch in its up / down position
+ * @property switchUp / [switchMid] / [switchDown] the colours of a switch in its up / mid / down position
  */
 @Immutable
 internal data class WidgetPalette(
@@ -38,6 +38,7 @@ internal data class WidgetPalette(
     val warn: Color,
     val alarm: Color,
     val switchUp: Color,
+    val switchMid: Color,
     val switchDown: Color,
     val sky: Color,
     val skyHigh: Color,
@@ -84,8 +85,9 @@ internal fun widgetPalette(): WidgetPalette {
         good = colors.success,
         warn = colors.warning,
         alarm = colors.error,
-        switchUp = colors.orange,
-        switchDown = colors.teal,
+        switchUp = colors.teal,
+        switchMid = colors.orange,
+        switchDown = colors.neutral,
         sky = if (dark) Color(0xFF2B6CA3) else Color(0xFF58A9DD),
         skyHigh = if (dark) Color(0xFF173F66) else Color(0xFF2F7FB5),
         ground = if (dark) Color(0xFF7A5230) else Color(0xFFA9743F),

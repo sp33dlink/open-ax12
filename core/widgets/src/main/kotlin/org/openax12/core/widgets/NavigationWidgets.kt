@@ -119,7 +119,7 @@ internal fun HorizonWidget(config: WidgetConfig, source: WidgetDataSource, modif
                         lineTo(tip.x + pointer * 0.7f, tip.y + pointer * 1.2f)
                         close()
                     },
-                    ws.palette.switchUp,
+                    ws.palette.switchMid,
                 )
             }
 
@@ -128,7 +128,7 @@ internal fun HorizonWidget(config: WidgetConfig, source: WidgetDataSource, modif
             val gapHalf = frame.width * 0.07f
             val thick = (frame.height * 0.03f).coerceIn(2.dp.toPx(), 4.5.dp.toPx())
             for (pass in 0..1) {
-                val color = if (pass == 0) Color.Black.copy(alpha = 0.45f) else ws.palette.switchUp
+                val color = if (pass == 0) Color.Black.copy(alpha = 0.45f) else ws.palette.switchMid
                 val width = if (pass == 0) thick * 1.7f else thick
                 drawLine(color, Offset(center.x - gapHalf - wing, center.y), Offset(center.x - gapHalf, center.y), width, cap = StrokeCap.Round)
                 drawLine(color, Offset(center.x + gapHalf, center.y), Offset(center.x + gapHalf + wing, center.y), width, cap = StrokeCap.Round)

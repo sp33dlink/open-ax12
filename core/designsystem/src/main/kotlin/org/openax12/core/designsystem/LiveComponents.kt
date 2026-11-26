@@ -2,7 +2,6 @@ package org.openax12.core.designsystem
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -11,7 +10,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,10 +34,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
@@ -174,12 +169,11 @@ fun ChannelRow(
 }
 
 /**
- * State of a 2- or 3-position switch as a vertical pill, as in the stock home screen: the knob
- * is at the top in **orange** (up), in the middle in a **neutral** tone (mid) or at the bottom in
- * **teal** (down).
+ * State of a 2- or 3-position switch as a vertical pill: the knob is at the top in **teal**
+ * (up, +100 %), in the middle in **orange** (mid, 0 %) or at the bottom in **gray** (down, -100 %).
  *
- * @param position logic value of the switch, read in the draw phase: negative = up, 0 = mid,
- *   positive = down (the SDK reports -100 / 0 / +100)
+ * @param position logic value of the switch, read in the draw phase: positive = up, 0 = mid,
+ *   negative = down (the AX12 reports +100 / 0 / -100, assumption 3)
  * @param label name under the pill ("SA")
  * @param positions 2 or 3; a 2-position switch has no middle detent mark
  */
@@ -212,14 +206,14 @@ fun SwitchPill(
                     drawCircle(colors.textFaint.copy(alpha = 0.5f), radius = 1.5.dp.toPx(), center = Offset(cx, mid))
                 }
                 val cy = when {
-                    p < 0 -> top
-                    p > 0 -> bottom
+                    p > 0 -> top
+                    p < 0 -> bottom
                     else -> mid
                 }
                 val knob = when {
-                    p < 0 -> colors.orange
                     p > 0 -> colors.teal
-                    else -> if (colors.neumorphic) Color.White else colors.textMuted
+                    p < 0 -> colors.neutral
+                    else -> colors.orange
                 }
                 if (colors.neumorphic) {
                     drawCircle(colors.shadowDark.copy(alpha = 0.5f), radius = r, center = Offset(cx + 0.8.dp.toPx(), cy + 1.2.dp.toPx()))
@@ -400,69 +394,6 @@ fun TimerRow(
             )
         } else {
             Spacer(Modifier.width(12.dp))
-        }
-    }
-}
-
-/**
- * Page selector `1 … n` of the home screen: small pills, the selected one filled with the accent
- * colour. Each page keeps a 44 dp high touch target.
- *
- * @param pageCount number of pages
- * @param selectedPage 0-based selected page
- * @param onSelect called with the 0-based page
- * @param labels optional custom labels (default "1".."n")
- */
-@Composable
-fun PageSelector(
-    pageCount: Int,
-    selectedPage: Int,
-    onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-    labels: List<String>? = null,
-) {
-    val colors = AxTheme.colors
-    Row(
-        modifier = modifier.height(AxDimens.MinTouch),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        for (page in 0 until pageCount) {
-            val selected = page == selectedPage
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        role = Role.Tab,
-                        onClick = { onSelect(page) },
-                    )
-                    .semantics { this.selected = selected },
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(width = 28.dp, height = 20.dp)
-                        .then(
-                            if (selected) {
-                                Modifier.axRaised(cornerRadius = 10.dp, elevation = 2.dp, color = colors.accent)
-                            } else {
-                                Modifier.axRaised(cornerRadius = 10.dp, elevation = 2.dp, color = colors.surfaceRaised)
-                            },
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = labels?.getOrNull(page) ?: (page + 1).toString(),
-                        style = AxTheme.typography.label,
-                        color = if (selected) colors.onAccent else colors.text,
-                        maxLines = 1,
-                        overflow = TextOverflow.Clip,
-                    )
-                }
-            }
         }
     }
 }

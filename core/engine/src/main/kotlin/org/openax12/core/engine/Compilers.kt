@@ -36,7 +36,7 @@ import kotlin.math.roundToInt
  * flight modes keep working when the app is not running.
  *
  * - For every channel with a non-zero offset in any mode: one mix line `channel += modeSwitch`
- *   through a planned **custom 3-point curve** (x = −100 / 0 / +100 = switch up / mid / down)
+ *   through a planned **custom 3-point curve** (x = −100 / 0 / +100 = switch down / mid / up)
  *   whose y values are the offsets of the modes bound to those positions, with slow up / down =
  *   the largest transition time of the modes. Identical curves are shared (same curve key).
  * - For every channel with a rate ≠ 100 in a mode: one dual rate on that channel with the
@@ -84,7 +84,7 @@ object FlightModeCompiler {
                 PlannedCurve(
                     key = key,
                     type = CurveType.CUSTOM,
-                    points = SwitchPosition.entries.mapIndexed { i, position -> CurvePoint(position.logic, offsets[i]) },
+                    points = SwitchPosition.byLogic.map { position -> CurvePoint(position.logic, offsets[position.ordinal]) },
                     comment = "Flight mode offsets (up / mid / down)",
                 )
             }
@@ -623,12 +623,12 @@ private class WingPlanner(private val config: WingConfig) {
         }
     }
 
-    /** A 3-point curve over the switch positions up / mid / down. */
+    /** A 3-point curve over the switch positions; [values] are in the order up / mid / down, the points ascend in x (down first). */
     private fun positionCurve(key: String, values: List<Int>, comment: String): CurveRef {
         curves[key] = PlannedCurve(
             key = key,
             type = CurveType.CUSTOM,
-            points = SwitchPosition.entries.mapIndexed { i, position -> CurvePoint(position.logic, values[i]) },
+            points = SwitchPosition.byLogic.map { position -> CurvePoint(position.logic, values[position.ordinal]) },
             comment = comment,
         )
         return CurveRef.Planned(key)

@@ -192,8 +192,8 @@ object ModelTemplates {
     /** Channel of the left tip surface of a 6-servo wing. */
     const val CH_TIP_LEFT: Int = 8
 
-    /** An arm / hold switch counts as "live" above this logic value (= switch down). */
-    const val ARMED_ABOVE: Int = 50
+    /** An arm / hold switch counts as "live" below this logic value (= switch down, which reports −100). */
+    const val ARMED_BELOW: Int = -50
 
     /** Planned curve key of the helicopter's normal-mode throttle curve. */
     const val CURVE_HELI_THROTTLE: String = "heli:throttle"
@@ -520,7 +520,7 @@ object ModelTemplates {
                 PlannedCurve(
                     CURVE_HELI_IDLE_UP,
                     CurveType.CUSTOM,
-                    listOf(CurvePoint(-100, 0), CurvePoint(0, IDLE_UP_1), CurvePoint(100, IDLE_UP_2)),
+                    listOf(CurvePoint(-100, IDLE_UP_2), CurvePoint(0, IDLE_UP_1), CurvePoint(100, 0)),
                     comment = "Idle-up throttle (normal / idle-up 1 / idle-up 2)",
                 ),
                 PlannedCurve(CURVE_HELI_PITCH, CurveType.CUSTOM, linear, comment = "Collective pitch curve"),
@@ -575,10 +575,10 @@ object ModelTemplates {
     private fun SourceId.orSwitch(fallback: SourceId): SourceId = if (isSwitch) this else fallback
 
     /** "The arm switch is down." */
-    private fun armed(switch: SourceId): SwitchCondition = SwitchCondition(switch, CompareOp.GREATER, ARMED_ABOVE)
+    private fun armed(switch: SourceId): SwitchCondition = SwitchCondition(switch, CompareOp.LESS, ARMED_BELOW)
 
     /** "The arm switch is in any position but down." */
-    private fun disarmed(switch: SourceId): SwitchCondition = SwitchCondition(switch, CompareOp.LESS, ARMED_ABOVE)
+    private fun disarmed(switch: SourceId): SwitchCondition = SwitchCondition(switch, CompareOp.GREATER, ARMED_BELOW)
 
     /** Channel lock that holds [channel] at −100 unless [switch] is down. */
     private fun throttleCut(channel: Int, switch: SourceId, comment: String): PlannedChannel =
