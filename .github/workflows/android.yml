@@ -5,7 +5,9 @@ name: Android
 # (signed with the runner's throw-away debug key).
 # Pushes to master with a new version (baseVersionName in app/build.gradle.kts has no tag
 # v<version> yet): the release job builds the signed release APK, creates the tag v<version> and
-# a GitHub release with the APK attached. The release is created as a draft, the APK is uploaded
+# a GitHub release with the APK attached as open-ax12.apk (a fixed name, so
+# https://github.com/sp33dlink/open-ax12/releases/latest/download/open-ax12.apk always
+# points to the latest release). The release is created as a draft, the APK is uploaded
 # and only then it is published (the repository uses immutable releases: a published release
 # cannot get assets afterwards).
 #
@@ -160,11 +162,11 @@ jobs:
           ./gradlew assembleRelease -Popenax12.release=true --stacktrace
           apk=app/build/outputs/apk/release/app-release.apk
           test -f "$apk" || { echo "::error::$apk missing (unsigned?)"; exit 1; }
-          cp "$apk" "open-ax12-v$VERSION.apk"
+          cp "$apk" open-ax12.apk
 
       - name: Create the release (draft, with APK) and publish it
         run: |
-          gh release create "v$VERSION" "open-ax12-v$VERSION.apk" \
+          gh release create "v$VERSION" open-ax12.apk \
             --draft --target "$GITHUB_SHA" \
             --title "open-ax12 v$VERSION" \
             --notes-file docs/RELEASE_NOTES.md --generate-notes
