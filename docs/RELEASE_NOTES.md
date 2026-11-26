@@ -1,18 +1,13 @@
-open-ax12 v0.2 is the first version tested on a real RadioMaster AX12. It fixes several problems that only showed up on the radio and makes the Home screen cleaner.
+## What's Changed in v0.2.1
+* First CI release with APK
 
-**Status: early alpha.** Check every model on the ground with the receiver connected and the propeller removed before you fly with it. Firmware updates stay in the stock app.
+## What's Changed in v0.2
+* Home: cleaner stick pads by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/1
+* Home: show the SP button row instead of the input page selector by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/4
+* Fix model switching: never write an incomplete model to the radio by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/8
+* Home: widgets first in the centre card, no model name by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/2
+* Close the stock RadioMaster app automatically before connecting by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/3
+* Models: fix delete failing for non-active models, one-step hold-to-delete by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/5
+* Fix stick calibration: follow the radio's phases by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/6
+* Fix radio settings: safe read/write of stick mode, RF module and alarm voltage by @sp33dlink in https://github.com/sp33dlink/open-ax12/pull/7
 
-### Fixes found on the radio
-- **Stick calibration:** the calibration screen now follows the radio's phases (centre first, then end points). Before, it could store a wrong centre, leaving every axis at 0 … +100 %. If you calibrated with v0.1, calibrate again.
-- **Model copies:** duplicating, importing or restoring a model created a copy without channels and mixes. Copies are now complete, a model file is checked before it is loaded, and an incomplete configuration is never written to the radio.
-- **Radio settings:** stick mode, RF module and low-voltage alarm were shown wrong (RF "Off", 0.0 V) because the SDK's system-settings read is unreliable. They are now read from the model configuration; implausible values block any write, turning RF off needs a confirmation, and an SDK bug that overwrote curve 0 when writing these settings is worked around.
-- **Live values:** sticks, switches and channels are shown in percent (they were raw PWM / SDK values), the stick-mode mapping and switch direction (up = +100 %) are correct.
-- **Deleting models** works again; a one-step hold-to-delete button with a red border.
-- **After clearing the app data** the radio's model is recognised in the library instead of creating a new "Model-NNN".
-
-### New
-- **Close the stock app automatically** before connecting (setting, on by default), with a button and a hint if connecting takes long.
-- **Start on boot** (setting, on by default) and a one-page **onboarding** on first start.
-- **Home:** bigger stick pads with the trims on the border, borders light up only at exactly ±100 % (reveals missing calibration), widgets first in the centre card, the SP button row like the stock app, new switch colours (up turquoise, mid orange, down gray).
-
-No APK is attached to this release. Build it yourself (see the README) or take the dev APK from the latest successful run of the Android workflow.
