@@ -15,6 +15,7 @@
     <string name="fb_system_not_applied">The radio did not take the change. See Diagnostics for details</string>
     <string name="fb_rf_off_unconfirmed">Turning the RF module off needs a confirmation</string>
     <string name="fb_timeout">The radio did not answer in time</string>
+    <string name="fb_config_incomplete">The configuration was incomplete. Nothing was written to the radio</string>
     <string name="fb_failed">That did not work. See Diagnostics for details</string>
     <string name="fb_rejected">The radio rejected the change</string>
     <string name="fb_no_sound_files">No sound files found in the sounds folder</string>
@@ -395,6 +396,7 @@
     <string name="fault_save_timeout">Save times out</string>
     <string name="fault_read_timeout">Read times out</string>
     <string name="fault_add_mix">Adding a mix fails</string>
+    <string name="fault_incomplete_load">Model loads incompletely</string>
     <string name="fault_low_voltage">Low TX voltage</string>
     <string name="fault_firmware">Firmware mismatch</string>
     <string name="fault_preflight">Failing pre-flight check</string>

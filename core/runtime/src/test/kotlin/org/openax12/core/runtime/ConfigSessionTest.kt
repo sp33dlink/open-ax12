@@ -30,6 +30,8 @@ import org.openax12.core.model.SystemConfig
 import org.openax12.core.model.WingConfig
 import org.openax12.core.radio.Radio
 import org.openax12.core.radio.SimulatedFault
+import org.openax12.core.radio.TaskResult
+import org.openax12.core.radio.getCurrentModel
 import org.openax12.core.radio.fake.FakeRadio
 import org.openax12.core.radio.getMixes
 import org.openax12.core.radio.readWorkingConfig
@@ -294,6 +296,46 @@ class ConfigSessionTest {
         assertFalse(rig.session.dirty.value)
         assertTrue(rig.models.deviceInSync.value)
         assertEquals(1, rig.models.writtenCount)
+    }
+
+    @Test
+    fun anIncompleteModelLoadIsRefusedAndNeverReachesTheRadio() = runTest {
+        val rig = rig()
+        val second = rig.secondModel()
+        val deviceMixes = rig.radio.readWorkingConfig().mixes.size
+        assertTrue(deviceMixes > 0)
+        rig.radio.simulator.injectFault(SimulatedFault.INCOMPLETE_MODEL_LOAD)
+        rig.radio.advance(40)
+
+        val result = rig.session.selectModel(second)
+
+        // The radio refused to write the empty working config (nothing was sent) ...
+        assertEquals(SessionError.CONFIG_INCOMPLETE, result.errorOrNull())
+        assertEquals(0, rig.models.writtenCount)
+        assertTrue(rig.diagnostics.entries.value.any { "refused to write an incomplete" in it.message })
+        // ... and the session did not leave the empty config in place.
+        assertFalse(rig.session.workingConfig.value.isEmpty)
+        assertEquals(deviceMixes, rig.session.workingConfig.value.mixes.size)
+        // The device still holds the original configuration.
+        assertEquals(TaskResult.COMPLETED, rig.radio.readConfigFromDevice())
+        assertEquals(deviceMixes, rig.radio.readWorkingConfig().mixes.size)
+    }
+
+    @Test
+    fun savingAnEmptyWorkingConfigIsRefusedAndRecovered() = runTest {
+        val rig = rig()
+        val deviceMixes = rig.radio.readWorkingConfig().mixes.size
+        rig.radio.simulator.injectFault(SimulatedFault.INCOMPLETE_MODEL_LOAD)
+        rig.radio.advance(40)
+        // Something loads the current model file behind the session's back.
+        assertTrue(rig.radio.loadModelFile(rig.radio.getCurrentModel()!!.filePath))
+
+        val result = rig.session.save()
+
+        assertEquals(SessionError.CONFIG_INCOMPLETE, result.errorOrNull())
+        assertEquals(0, rig.models.savedCount)
+        assertEquals(deviceMixes, rig.radio.readWorkingConfig().mixes.size)
+        assertFalse(rig.session.dirty.value)
     }
 
     @Test

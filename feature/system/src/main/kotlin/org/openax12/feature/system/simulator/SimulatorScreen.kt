@@ -396,6 +396,7 @@ private fun faultLabel(fault: SimulatedFault): Int = when (fault) {
     SimulatedFault.SAVE_TIMEOUT -> R.string.fault_save_timeout
     SimulatedFault.READ_TIMEOUT -> R.string.fault_read_timeout
     SimulatedFault.ADD_MIX_FAILS -> R.string.fault_add_mix
+    SimulatedFault.INCOMPLETE_MODEL_LOAD -> R.string.fault_incomplete_load
     SimulatedFault.LOW_TX_VOLTAGE -> R.string.fault_low_voltage
     SimulatedFault.FIRMWARE_MISMATCH -> R.string.fault_firmware
     SimulatedFault.PRE_FLIGHT_CHECK_FAILS -> R.string.fault_preflight

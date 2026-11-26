@@ -184,6 +184,7 @@
     <string name="fn_err_data">The model could not be stored.</string>
     <string name="fn_err_model">The model does not exist.</string>
     <string name="fn_err_unsaved">There are unsaved changes.</string>
+    <string name="fn_err_config_incomplete">The configuration was incomplete. Nothing was written to the radio.</string>
     <string name="fn_err_write_pending">The model is not written to the radio yet. Save it first.</string>
 
     <!-- Flight modes -->

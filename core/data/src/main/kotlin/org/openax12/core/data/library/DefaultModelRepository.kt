@@ -7,6 +7,7 @@ import java.io.InputStream
 import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +38,7 @@ import org.openax12.core.model.ModelBlueprint
 import org.openax12.core.model.ModelConfigFile
 import org.openax12.core.model.ModelExtras
 import org.openax12.core.model.ModelExtrasCodec
+import org.openax12.core.model.ModelFileCheck
 import org.openax12.core.model.ModelInfo
 import org.openax12.core.model.ModelType
 import org.openax12.core.model.RadioWidePatch
@@ -48,7 +50,9 @@ import org.openax12.core.model.SystemConfigValidity
 import org.openax12.core.radio.ConnectionState
 import org.openax12.core.radio.Radio
 import org.openax12.core.radio.RadioEvent
+import org.openax12.core.radio.TaskResult
 import org.openax12.core.radio.getCurrentModel
+import org.openax12.core.radio.readWorkingConfig
 
 /** What a backup restore did with one model folder. */
 internal sealed interface FolderRestore {
@@ -393,6 +397,11 @@ internal class DefaultModelRepository(
             val keepExtras = entry.hasExtras || savedExtras != SDK_ONLY_EXTRAS
             if (keepExtras) updated = persistExtras(updated, savedExtras, folder)
             val export = exportSdkFile(info.filePath) ?: return@locked failure(DataError.RADIO_FAILED, "cannot export '${entry.name}'")
+            // Never replace the library's copy (and its snapshots) by an incomplete file.
+            ModelArchive.modelFileProblem(readLimited(export) ?: ByteArray(0))?.let {
+                export.delete()
+                return@locked failure(DataError.CONFIG_INCOMPLETE, "the SDK file of '${entry.name}' is incomplete, the library copy was kept: $it")
+            }
             val snapshot = try {
                 FileOps.copyFile(export, File(folder, SnapshotStore.MODEL_FILE))
                 SnapshotStore(folder).create(
@@ -601,8 +610,9 @@ internal class DefaultModelRepository(
         val folder = folderOf(entry)?.takeIf { it.isDirectory } ?: return@locked failure(DataError.NOT_FOUND, "no library folder")
         val store = SnapshotStore(folder)
         val modelFile = store.modelFile(snapshot.id) ?: return@locked failure(DataError.NOT_FOUND, snapshot.id)
-        if (!ModelArchive.isJsonObject(readLimited(modelFile) ?: ByteArray(0))) {
-            return@locked failure(DataError.INVALID_FILE, "the snapshot's model file is damaged")
+        val snapshotBytes = readLimited(modelFile) ?: ByteArray(0)
+        ModelArchive.modelFileProblem(snapshotBytes)?.let {
+            return@locked failure(DataError.INVALID_FILE, "the snapshot's model file is damaged: $it")
         }
         val restoredExtras = store.extrasFile(snapshot.id)?.let { file ->
             val decoded = ModelExtrasCodec.decodeOrNull(file.readText(Charsets.UTF_8))
@@ -647,6 +657,11 @@ internal class DefaultModelRepository(
                 saveIndex()
                 publish()
                 return@locked failure(DataError.RADIO_FAILED, "rcLoadModelFile failed")
+            }
+            verifyLoaded(snapshotBytes.toString(Charsets.UTF_8))?.let { problem ->
+                // The restored model is the current one: put the working config back to what the
+                // device holds. The SDK's file is brought in line by that read.
+                return@locked abandonLoadLocked(entry, index, pendingEpoch, newInfo, problem)
             }
             loadCurrentExtras(force = true)
         }
@@ -790,6 +805,19 @@ internal class DefaultModelRepository(
                     // The SDK's file was put right from the library; the working config must follow.
                     if (!radio.loadModelFile(pendingModel.second.filePath)) {
                         scratch.problems += "Cannot load '${pendingModel.first.name}' after repairing its file"
+                    } else {
+                        val repairedText = exportSdkFile(pendingModel.second.filePath)?.let { file ->
+                            try {
+                                file.readText(Charsets.UTF_8)
+                            } finally {
+                                file.delete()
+                            }
+                        }
+                        val problem = repairedText?.let { verifyLoaded(it) }
+                            ?: if (repairedText == null) "the repaired file cannot be read back" else null
+                        if (problem != null) {
+                            scratch.problems += "'${pendingModel.first.name}' did not load completely after the repair ($problem); nothing is written to the radio"
+                        }
                     }
                     pendingEpoch = readTracker.epoch()
                 }
@@ -1146,6 +1174,14 @@ internal class DefaultModelRepository(
         val entry = index.entry(modelId) ?: return failure(DataError.NOT_FOUND, modelId)
         if (!radioReady()) return notReady()
         val info = sdkModel(entry) ?: return failure(DataError.RADIO_FAILED, "unknown SDK model")
+        // The SDK says "loaded" for a file without channel data and then holds an empty working
+        // config (assumption r11): refuse such a file before the SDK sees it, and keep its text to
+        // compare the working config with after the load.
+        val fileText = readSdkFileText(info.filePath)
+            ?: return failure(DataError.RADIO_FAILED, "cannot read the model file of '${entry.name}' to check it")
+        ModelFileCheck.fileProblem(fileText)?.let {
+            return failure(DataError.CONFIG_INCOMPLETE, "'${entry.name}' is not loaded: $it")
+        }
         // Stick mode, RF module and alarm voltage belong to the radio, not to the model: bring the
         // model to the radio's values before the radio sees it. Read them first, while the current
         // model is still loaded. Reloading the current model needs nothing (it is the source).
@@ -1162,11 +1198,93 @@ internal class DefaultModelRepository(
             saveIndex()
             return failure(DataError.RADIO_FAILED, "rcLoadModelFile failed")
         }
+        verifyLoaded(fileText)?.let { problem ->
+            return abandonLoadLocked(before.entry(before.currentId), before, epochBefore, info, problem)
+        }
         index = index.copy(currentId = entry.id)
         loadCurrentExtras(force = true)
         saveIndex()
         publish()
         return entryResult(entry.id)
+    }
+
+    /** The text of the SDK model file [sdkFile] (read through `rcExportModelCfg`), or null. */
+    private suspend fun readSdkFileText(sdkFile: String): String? {
+        val export = exportSdkFile(sdkFile) ?: return null
+        return try {
+            readLimited(export)?.toString(Charsets.UTF_8)
+        } finally {
+            export.delete()
+        }
+    }
+
+    /**
+     * Why the SDK working config is not the model file [fileText] it was just loaded from, or null
+     * if it is. An empty or all-zero config is reported first (that is what `rcLoadModelFile` leaves
+     * for a file without channel data, assumption r11), then any difference in channel count, mix
+     * count and key fields. A file that is not in the SDK format (simulator) is only checked for
+     * being non-empty.
+     */
+    private suspend fun verifyLoaded(fileText: String): String? {
+        val working = radio.readWorkingConfig()
+        ModelFileCheck.workingProblem(working)?.let { return it }
+        val summary = ModelFileCheck.summarize(fileText) ?: return null
+        return ModelFileCheck.mismatch(summary, working)
+    }
+
+    /**
+     * Gets out of a load whose result did not pass [verifyLoaded]: the SDK working config is not
+     * trustworthy and must never be written to the radio.
+     *
+     * The SDK does not answer a device read between a load and the write that follows it (the read
+     * times out, observed on the AX12), so the way back is the documented one: load the
+     * [previous] model's file again (it was written from the device and is checked against its own
+     * text here). Only when there is no other file to go back to (the file just loaded is the
+     * current model's own) a device read is tried, with a short timeout. Always returns the failure
+     * to report.
+     *
+     * The library stays in the "device not confirmed" state of [previous] unless the device read
+     * worked: the SDK still has a load outstanding, the UI offers "Write now" (which writes the
+     * verified previous configuration, the radio-level guard refuses an empty one) and a restart
+     * of the app reads the device. Nothing of the failed load is ever sent to the radio.
+     */
+    private suspend fun abandonLoadLocked(
+        previous: SyncEntry?,
+        before: SyncIndex,
+        epochBefore: Long,
+        loaded: ModelInfo,
+        problem: String,
+    ): DataResult.Failure {
+        val previousInfo = previous?.let { sdkModel(it) }
+        var deviceRead: TaskResult? = null
+        val outcome = if (previousInfo != null && previousInfo.filePath != loaded.filePath) {
+            val previousText = readSdkFileText(previousInfo.filePath)
+            val reloaded = radio.loadModelFile(previousInfo.filePath)
+            when {
+                !reloaded -> "the previous model could not be loaded again"
+                previousText == null -> "the previous model was loaded again but could not be checked"
+                else -> verifyLoaded(previousText)?.let { "the previous model did not load completely either ($it)" }
+                    ?: "the previous model was loaded again"
+            }
+        } else {
+            deviceRead = radio.readConfigFromDevice(ABANDON_READ_TIMEOUT)
+            "device read: $deviceRead"
+        }
+        val inSync = deviceRead?.isSuccess == true
+        index = index.copy(
+            currentId = before.currentId,
+            deviceInSync = inSync,
+            pendingModelId = if (inSync) null else before.currentId,
+        )
+        pendingEpoch = if (inSync) readTracker.epoch() else epochBefore
+        _deviceInSync.value = inSync
+        saveIndex()
+        loadCurrentExtras(force = true)
+        publish()
+        return failure(
+            DataError.CONFIG_INCOMPLETE,
+            "'${loaded.name}' did not load completely ($problem); nothing was written; $outcome",
+        )
     }
 
     private fun updateCurrentExtrasLocked(transform: (ModelExtras) -> ModelExtras): ModelExtras {
@@ -1417,6 +1535,8 @@ internal class DefaultModelRepository(
     private suspend fun writeModelFileFromSdk(info: ModelInfo, folder: File): File? {
         val export = exportSdkFile(info.filePath) ?: return null
         try {
+            // An incomplete SDK file (assumption r11) must not overwrite the library's copy.
+            if (ModelArchive.modelFileProblem(readLimited(export) ?: ByteArray(0)) != null) return null
             val target = File(folder, SnapshotStore.MODEL_FILE)
             FileOps.copyFile(export, target)
             return target
@@ -1520,7 +1640,7 @@ internal class DefaultModelRepository(
         val model = File(folder, SnapshotStore.MODEL_FILE)
         if (!model.isFile) return DataError.NOT_FOUND to "it has no ${SnapshotStore.MODEL_FILE}"
         val bytes = readLimited(model) ?: return DataError.TOO_LARGE to "${SnapshotStore.MODEL_FILE} is too large"
-        if (!ModelArchive.isJsonObject(bytes)) return DataError.INVALID_FILE to "${SnapshotStore.MODEL_FILE} is not a JSON object"
+        ModelArchive.modelFileProblem(bytes)?.let { return DataError.INVALID_FILE to "${SnapshotStore.MODEL_FILE}: $it" }
         val extras = ExtrasStore.load(folder, quarantine = false)
         if (extras is ExtrasLoad.Loaded && extras.newerThanApp) return DataError.SCHEMA_TOO_NEW to "its extras were written by a newer app version"
         return null
@@ -1723,6 +1843,9 @@ internal class DefaultModelRepository(
         private const val EXPORT_WAIT_STEP_MS = 25L
         private const val EMPTY_LIST_RETRY_MS = 300L
         private const val NEW_TARGET_ATTEMPTS = 4
+
+        /** How long [abandonLoadLocked] waits for a device read (the SDK may not answer while a load is outstanding). */
+        private val ABANDON_READ_TIMEOUT = 5.seconds
         private const val NEW_TARGET_WAIT_MS = 1_100L
 
         /** `modelMatch` is an unsigned 32-bit field in the SDK. */

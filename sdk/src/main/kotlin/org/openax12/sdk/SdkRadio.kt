@@ -37,6 +37,7 @@ import org.openax12.core.model.DualRateSlot
 import org.openax12.core.model.FirmwareInfo
 import org.openax12.core.model.LiveSnapshot
 import org.openax12.core.model.MixLine
+import org.openax12.core.model.ModelFileCheck
 import org.openax12.core.model.ModelInfo
 import org.openax12.core.model.NO_CURVE
 import org.openax12.core.model.ModelConfigFile
@@ -69,6 +70,7 @@ import org.openax12.core.radio.TaskResult
  * @property probePort best-effort look at the serial port after a silent start
  * @property fileExists true if the path is an existing regular file
  * @property readText the text of a (small) file, or null if it cannot be read
+ * @property writeText replaces a (small) file by the text (all or nothing), false if that failed
  */
 internal class SdkEnvironment(
     val loadError: Throwable?,
@@ -77,6 +79,7 @@ internal class SdkEnvironment(
     val probePort: () -> PortProbeResult,
     val fileExists: (String) -> Boolean,
     val readText: (String) -> String? = { null },
+    val writeText: (String, String) -> Boolean = { _, _ -> false },
     val info: (String) -> Unit = {},
     val warn: (String, Throwable?) -> Unit = { _, _ -> },
 ) {
@@ -96,6 +99,18 @@ internal class SdkEnvironment(
             probePort = { SerialPortProbe.forDevice().probe() },
             fileExists = { File(it).isFile },
             readText = { path -> runCatching { File(path).takeIf { it.isFile && it.length() <= MAX_MODEL_FILE_BYTES }?.readText() }.getOrNull() },
+            writeText = { path, text ->
+                runCatching {
+                    // Written beside the target and renamed over it: the SDK never sees a half-written file.
+                    val target = File(path)
+                    val temp = File(target.parentFile, "${target.name}.openax12.tmp")
+                    temp.writeText(text)
+                    if (!temp.renameTo(target)) {
+                        temp.delete()
+                        error("rename failed")
+                    }
+                }.isSuccess
+            },
             info = { Log.i(TAG, it) },
             warn = { message, error -> Log.w(TAG, message, error) },
         )
@@ -657,10 +672,28 @@ class SdkRadio internal constructor(
         _configRevision.value += 1
     }
 
-    private suspend fun runDeviceTask(slot: TaskSlot, timeout: Duration, send: () -> Unit): TaskResult =
+    /**
+     * Starts a device task and waits for its completion message. [refusal] runs on the SDK thread
+     * right before the task is sent; a non-null text refuses the task ([TaskResult.REFUSED]).
+     */
+    private suspend fun runDeviceTask(
+        slot: TaskSlot,
+        timeout: Duration,
+        refusal: (() -> String?)? = null,
+        send: () -> Unit,
+    ): TaskResult =
         withContext(sdkDispatcher) {
             if (!usable()) return@withContext TaskResult.NOT_READY
             if (slot.pending != null) return@withContext TaskResult.BUSY
+            val refused = try {
+                refusal?.invoke()
+            } catch (t: Throwable) {
+                "the check failed: ${t.message ?: t.javaClass.simpleName}"
+            }
+            if (refused != null) {
+                environment.warn("device task refused: $refused", null)
+                return@withContext TaskResult.REFUSED
+            }
             val done = CompletableDeferred<Boolean>()
             slot.pending = done
             try {
@@ -697,7 +730,17 @@ class SdkRadio internal constructor(
         runDeviceTask(readSlot, timeout) { native.readConfigFromDevice() }
 
     override suspend fun saveConfigToDevice(timeout: Duration): TaskResult =
-        runDeviceTask(writeSlot, timeout) { native.saveConfigToDevice() }
+        runDeviceTask(writeSlot, timeout, refusal = ::incompleteWorkingConfig) { native.saveConfigToDevice() }
+
+    /**
+     * Last line of defence before `taskSaveConfigToDevice` (it writes the whole working config):
+     * why the working config must not be written, or null. An SDK that loaded a model file without
+     * channel data (assumption r11) holds channels with all limits 0 and no mixes.
+     */
+    private fun incompleteWorkingConfig(): String? {
+        val channels = native.getChannels()?.let(SdkMapping::outputChannels).orEmpty()
+        return ModelFileCheck.channelsProblem(channels)
+    }
 
     override suspend fun resetToDefaults(): Boolean = onSdk(false) {
         native.resetDefault()
@@ -1125,11 +1168,23 @@ class SdkRadio internal constructor(
     }
 
     override suspend fun importModel(importFile: String, targetModelFile: String): Boolean = onSdk(false) {
+        // `rcImportModelCfg` would leave the target without channels and mixes (assumption r12), so
+        // the file is merged here: the source's content under the target's identity. The target
+        // must already exist (the SDK made it); the source must be a complete SDK model file.
         val imported = SdkMapping.isUsablePath(importFile) && SdkMapping.isUsablePath(targetModelFile) && importFile != targetModelFile &&
-            environment.fileExists(importFile) && native.importModel(importFile, targetModelFile) == 0
+            environment.fileExists(importFile) && environment.fileExists(targetModelFile) &&
+            mergeModelFile(importFile, targetModelFile)
         // The target may be the model the working config was loaded from (assumption s2).
         if (imported) cachedCounts = null
         imported
+    }
+
+    /** Writes the merge of [ModelFileCheck.importInto] into [targetModelFile]; false (nothing written) if it is not possible. */
+    private fun mergeModelFile(importFile: String, targetModelFile: String): Boolean {
+        val source = environment.readText(importFile) ?: return false
+        val target = environment.readText(targetModelFile) ?: return false
+        val merged = ModelFileCheck.importInto(source, target) ?: return false
+        return environment.writeText(targetModelFile, merged)
     }
 
     override suspend fun deleteModel(modelFile: String): Boolean = onSdk(false) {
