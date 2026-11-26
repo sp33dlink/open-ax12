@@ -1,18 +1,27 @@
 name: Android
 
-# master / develop: build, test and publish an installable dev APK as a workflow artifact.
-# Tags v*: same checks, then a GitHub release (source only for now; see "Attach APK" below).
-# Pull requests: build and test only.
+# Pull requests: build and test.
+# Pushes to develop / master: build, test and publish an installable dev APK as a workflow artifact.
+# Pushes to master with a new version (baseVersionName in app/build.gradle.kts has no tag
+# v<version> yet): additionally build the signed release APK, create the tag v<version> and a
+# GitHub release with the APK attached. The release is created as a draft, the APK is uploaded
+# and only then it is published (the repository uses immutable releases: a published release
+# cannot get assets afterwards).
+#
+# Signing (repository secrets; required for releases, optional for dev APKs):
+#   OPENAX12_KEYSTORE_BASE64   base64 of the .jks keystore
+#   OPENAX12_KEYSTORE_PASSWORD keystore password
+#   OPENAX12_KEY_ALIAS         key alias
+#   OPENAX12_KEY_PASSWORD      key password
 on:
   push:
     branches: [master, develop]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 permissions:
   contents: read
@@ -21,12 +30,53 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
     env:
-      RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      KEYSTORE_BASE64: ${{ secrets.OPENAX12_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # versionCode = commit count
+
+      - name: Version
+        id: version
+        run: |
+          version=$(sed -n 's/^val baseVersionName = "\(.*\)"$/\1/p' app/build.gradle.kts)
+          test -n "$version" || { echo "::error::baseVersionName not found in app/build.gradle.kts"; exit 1; }
+          release=false
+          if [ "${{ github.event_name }}" = push ] && [ "${{ github.ref }}" = refs/heads/master ]; then
+            if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+              echo "Tag v$version exists already: no release."
+            else
+              release=true
+              echo "New version $version on master: a release will be created."
+            fi
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+
+      - name: Signing key
+        if: env.KEYSTORE_BASE64 != ''
+        env:
+          KS_PASSWORD: ${{ secrets.OPENAX12_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.OPENAX12_KEY_ALIAS }}
+          KS_KEY_PASSWORD: ${{ secrets.OPENAX12_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/openax12.jks"
+          {
+            echo "OPENAX12_KEYSTORE_FILE=$RUNNER_TEMP/openax12.jks"
+            echo "OPENAX12_KEYSTORE_PASSWORD=$KS_PASSWORD"
+            echo "OPENAX12_KEY_ALIAS=$KS_ALIAS"
+            echo "OPENAX12_KEY_PASSWORD=$KS_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Signing key required for a release
+        if: steps.version.outputs.release == 'true' && env.KEYSTORE_BASE64 == ''
+        run: |
+          echo "::error::Releasing v${{ steps.version.outputs.version }} needs the signing secrets (OPENAX12_KEYSTORE_BASE64, OPENAX12_KEYSTORE_PASSWORD, OPENAX12_KEY_ALIAS, OPENAX12_KEY_PASSWORD). See the README, section Releases."
+          exit 1
 
       - uses: actions/setup-java@v6
         with:
@@ -46,11 +96,9 @@ jobs:
         run: scripts/fetch-sdk.sh
 
       - name: Build and test
-        run: >
-          ./gradlew assembleDebug testDebugUnitTest :core:model:test :core:engine:test
-          -Popenax12.release=${{ env.RELEASE }} --stacktrace
+        run: ./gradlew assembleDebug testDebugUnitTest :core:model:test :core:engine:test --stacktrace
 
-      - name: Rename APK
+      - name: Dev APK
         id: apk
         run: |
           code=$(git rev-list --count HEAD)
@@ -67,6 +115,22 @@ jobs:
           path: ${{ steps.apk.outputs.file }}
           retention-days: 30
 
+      - name: Release APK
+        if: steps.version.outputs.release == 'true'
+        run: |
+          ./gradlew assembleRelease -Popenax12.release=true --stacktrace
+          apk=app/build/outputs/apk/release/app-release.apk
+          test -f "$apk" || { echo "::error::$apk missing (unsigned?)"; exit 1; }
+          cp "$apk" "open-ax12-v${{ steps.version.outputs.version }}.apk"
+
+      - name: Upload release APK
+        if: steps.version.outputs.release == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-ax12-release-apk
+          path: open-ax12-v${{ steps.version.outputs.version }}.apk
+          retention-days: 7
+
       - name: Test reports
         if: failure()
         uses: actions/upload-artifact@v7
@@ -76,18 +140,25 @@ jobs:
           retention-days: 7
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: needs.build.outputs.release == 'true'
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: v${{ needs.build.outputs.version }}
     steps:
       - uses: actions/checkout@v7
-      - name: Create GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        # Attach APK: download the "open-ax12-dev-apk" artifact (actions/download-artifact)
-        # and add the file to this command once APKs should be published with releases.
-        run: >
-          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
-          --title "open-ax12 ${GITHUB_REF_NAME}" --notes-file docs/RELEASE_NOTES.md
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: open-ax12-release-apk
+
+      - name: Create the release (draft, with APK) and publish it
+        run: |
+          gh release create "$TAG" "open-ax12-$TAG.apk" \
+            --draft --target "$GITHUB_SHA" \
+            --title "open-ax12 $TAG" \
+            --notes-file docs/RELEASE_NOTES.md --generate-notes
+          gh release edit "$TAG" --draft=false --latest

@@ -64,7 +64,7 @@ Package root: `org.openax12` (e.g. `org.openax12.core.model`, `org.openax12.feat
 - Full check: `scripts/gw assembleDebug testDebugUnitTest :core:model:test :core:engine:test`.
 - Emulator: only ever use `adb -s emulator-5554`. **Never install on or send commands to any other attached device.**
 - Commit or push only when the user asks. The repository is public on GitHub (AGPL-3.0 + SDK linking exception, `LICENSE-EXCEPTION.md`); never commit SDK files, keystores or device-specific data.
-- Versioning: `versionCode` = git commit count, `versionName` = `0.1-dev.<count>+<sha>` (plain `0.1` with `-Popenax12.release=true`). CI: `.github/workflows/android.yml`.
+- Versioning: `versionCode` = git commit count, `versionName` = `<baseVersionName>-dev.<count>+<sha>` (plain `<baseVersionName>` with `-Popenax12.release=true`); `baseVersionName` is in `app/build.gradle.kts`. CI: `.github/workflows/android.yml` — a push to `master` with a version that has no tag `v<version>` creates the tag and the GitHub release with the signed APK (signing key from repository secrets). Never create release tags or releases by hand (releases are immutable).
 
 ## Visual checks
 

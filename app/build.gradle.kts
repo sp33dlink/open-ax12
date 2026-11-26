@@ -19,6 +19,13 @@ val commitCount: Int = gitOutput("rev-list", "--count", "HEAD").orNull?.toIntOrN
 val shortSha: String = gitOutput("rev-parse", "--short=7", "HEAD").orNull?.takeIf { it.matches(Regex("[0-9a-f]{7}")) } ?: "local"
 val isRelease: Boolean = providers.gradleProperty("openax12.release").orNull == "true"
 
+// Signing: CI provides a stable key through these environment variables (decoded from repository
+// secrets, see .github/workflows/android.yml). With a key, debug and release APKs are signed with
+// it, so every CI build installs as an update over the previous one. Without it (local builds),
+// debug uses the local debug key and release APKs stay unsigned.
+val signingKeyFile: String? = providers.environmentVariable("OPENAX12_KEYSTORE_FILE").orNull
+    ?.takeIf { file(it).isFile }
+
 android {
     defaultConfig {
         applicationId = "org.openax12.app"
@@ -26,10 +33,25 @@ android {
         versionName = if (isRelease) baseVersionName else "$baseVersionName-dev.$commitCount+$shortSha"
     }
 
+    if (signingKeyFile != null) {
+        signingConfigs {
+            create("openax12") {
+                storeFile = file(signingKeyFile)
+                storePassword = providers.environmentVariable("OPENAX12_KEYSTORE_PASSWORD").orNull
+                keyAlias = providers.environmentVariable("OPENAX12_KEY_ALIAS").orNull
+                keyPassword = providers.environmentVariable("OPENAX12_KEY_PASSWORD").orNull
+            }
+        }
+    }
+
     buildTypes {
         release {
             // R8 stays off until keep rules for the JNI bridge and serializers exist.
             isMinifyEnabled = false
+            if (signingKeyFile != null) signingConfig = signingConfigs.getByName("openax12")
+        }
+        debug {
+            if (signingKeyFile != null) signingConfig = signingConfigs.getByName("openax12")
         }
     }
 

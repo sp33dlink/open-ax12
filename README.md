@@ -38,9 +38,9 @@ All settings are per model except the system settings.
 
 ## Installing on the AX12
 
-There is no signed release APK yet. Either build it (below) or download the dev APK from the
-latest successful run of the [Android workflow](../../actions/workflows/android.yml) on `master`
-(artifact `open-ax12-dev-apk`).
+Download `open-ax12-v<version>.apk` from the [latest release](../../releases/latest), or a dev APK from the
+latest successful run of the [Android workflow](../../actions/workflows/android.yml) (artifact
+`open-ax12-dev-apk`), or build it yourself (below).
 
 1. Enable developer options and USB debugging on the AX12 and connect it to your computer.
 2. Only one app can use the radio's serial port. open-ax12 closes the stock RadioMaster app itself
@@ -86,9 +86,46 @@ missing. `scripts/fetch-sdk.sh --docs` also fetches the SDK manuals and the vend
 
 ### Versioning
 
-`versionCode` is the number of commits on `HEAD`, so every build from `master` installs over the
-previous one. Dev builds are named `0.2-dev.<commits>+<sha>`; release builds
-(`-Popenax12.release=true`, used for tags) are named `0.2`.
+`versionCode` is the number of commits on `HEAD`, so every build from `develop` / `master` installs
+over the previous one. Dev builds are named `<version>-dev.<commits>+<sha>`; release builds
+(`-Popenax12.release=true`) are named `<version>`. The version is `baseVersionName` in
+`app/build.gradle.kts`.
+
+### Releases
+
+Bump `baseVersionName` (and update `docs/RELEASE_NOTES.md`) through a pull request into `develop`,
+then merge `develop` into `master`. When `master` has a version without a tag `v<version>`, the
+Android workflow builds and signs the release APK, creates the tag and the GitHub release with
+`open-ax12-v<version>.apk` attached. Do not create the tag or the release by hand: releases are
+immutable, so a release created first cannot get the APK any more.
+
+Releases need a stable signing key in the repository secrets (Settings → Secrets and variables →
+Actions). Create it once and keep the `.jks` file and its passwords safe, outside the repository —
+without it no update can be installed over an existing install:
+
+```bash
+keytool -genkeypair -v -keystore openax12-release.jks -alias openax12 -keyalg RSA -keysize 4096 -validity 36500
+```
+
+```bash
+base64 -i openax12-release.jks | gh secret set OPENAX12_KEYSTORE_BASE64
+```
+
+```bash
+gh secret set OPENAX12_KEYSTORE_PASSWORD
+```
+
+```bash
+gh secret set OPENAX12_KEY_ALIAS --body openax12
+```
+
+```bash
+gh secret set OPENAX12_KEY_PASSWORD
+```
+
+With the key in place, the dev APKs from CI are signed with it too, so they install over a release
+(and the other way round). APKs built locally or before the key existed use a different signature:
+uninstall them once before installing a CI build.
 
 ### Without a radio
 
