@@ -37,6 +37,7 @@ import org.openax12.core.model.FirmwareInfo
 import org.openax12.core.model.LiveSnapshot
 import org.openax12.core.model.MixLine
 import org.openax12.core.model.MixMode
+import org.openax12.core.model.ModelFileCheck
 import org.openax12.core.model.ModelInfo
 import org.openax12.core.model.NO_CURVE
 import org.openax12.core.model.OutputChannelConfig
@@ -295,6 +296,7 @@ class FakeRadio(
         when {
             !ready -> return@op TaskResult.NOT_READY
             saving -> return@op TaskResult.BUSY
+            ModelFileCheck.channelsProblem(working.channels) != null -> return@op TaskResult.REFUSED
         }
         if (faults.remove(SimulatedFault.SAVE_TIMEOUT)) {
             if (options.realisticDelays) delay(timeout)
@@ -640,7 +642,18 @@ class FakeRadio(
         if (!usable) return@op false
         val model = store.model(modelFile) ?: return@op false
         store.setCurrent(modelFile)
-        replaceWorking(model.config.withRadioSettingsOf(working.system))
+        val loaded = model.config.withRadioSettingsOf(working.system)
+        replaceWorking(
+            if (faults.remove(SimulatedFault.INCOMPLETE_MODEL_LOAD)) {
+                // What the SDK does with a file that has no channelOut: it still says "loaded".
+                loaded.copy(
+                    channels = loaded.channels.map { it.copy(min = 0, max = 0, middle = 0, weight = 0, mixCount = 0) },
+                    mixes = loaded.mixes.map { emptyList() },
+                )
+            } else {
+                loaded
+            },
+        )
         true
     }
 
@@ -970,6 +983,7 @@ class FakeRadio(
             SimulatedFault.SAVE_TIMEOUT,
             SimulatedFault.READ_TIMEOUT,
             SimulatedFault.ADD_MIX_FAILS,
+            SimulatedFault.INCOMPLETE_MODEL_LOAD,
             -> faults += fault
 
             SimulatedFault.LOW_TX_VOLTAGE -> {

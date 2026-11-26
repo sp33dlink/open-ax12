@@ -223,6 +223,7 @@
     <string name="models_err_plan">The model could not be set up completely. Nothing was changed.</string>
     <string name="models_err_unsaved">There are unsaved changes. Save or discard them first.</string>
     <string name="models_err_write_pending">The model is loaded but the radio did not confirm it. Open Model setup and press Save to write it again.</string>
+    <string name="models_err_config_incomplete">The model did not load completely. Nothing was written to the radio; its own configuration is unchanged.</string>
     <string name="models_err_no_picker">No file picker is available on this device.</string>
     <string name="models_err_no_share_target">No app can receive the model file.</string>
 </resources>

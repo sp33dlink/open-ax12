@@ -28,6 +28,7 @@ import org.openax12.core.model.DualRateSlot
 import org.openax12.core.model.ElrsItemType
 import org.openax12.core.model.FailsafeMode
 import org.openax12.core.model.MixMode
+import org.openax12.core.model.ModelFileCheck
 import org.openax12.core.model.NO_CURVE
 import org.openax12.core.model.RfModuleMode
 import org.openax12.core.model.Sensors
@@ -684,6 +685,33 @@ class FakeRadioTest {
         assertTrue(config.dualRates.none { it.isEnabled })
         assertTrue(radio.loadModelFile(radio.getCurrentModel()!!.filePath))
         assertEquals(4, radio.readWorkingConfig().mixes.size)
+    }
+
+    @Test
+    fun anIncompleteModelLoadIsNeverWrittenToTheDevice() = runTest {
+        val radio = radio()
+        val events = eventsOf(radio)
+        radio.start()
+        val current = radio.getCurrentModel()!!
+        val deviceMixes = radio.readWorkingConfig().mixes.size
+        assertTrue(deviceMixes > 0)
+
+        // The SDK says "loaded" but holds channels without limits and no mixes (assumption r11).
+        radio.simulator.injectFault(SimulatedFault.INCOMPLETE_MODEL_LOAD)
+        radio.advance(40)
+        assertTrue(radio.loadModelFile(current.filePath))
+        val loaded = radio.readWorkingConfig()
+        assertTrue(loaded.mixes.isEmpty())
+        assertNotNull(ModelFileCheck.workingProblem(loaded))
+        events.clear()
+
+        assertEquals(TaskResult.REFUSED, radio.saveConfigToDevice())
+        assertFalse(RadioEvent.ConfigWritten in events)
+
+        // The device still holds the real configuration.
+        assertEquals(TaskResult.COMPLETED, radio.readConfigFromDevice())
+        assertEquals(deviceMixes, radio.readWorkingConfig().mixes.size)
+        assertEquals(TaskResult.COMPLETED, radio.saveConfigToDevice())
     }
 
     // ---- timers through the radio ------------------------------------------------------------

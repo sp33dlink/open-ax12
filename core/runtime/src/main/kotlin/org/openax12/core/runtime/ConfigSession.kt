@@ -86,6 +86,14 @@ enum class SessionError {
      * not confirm that explicitly. Nothing was changed.
      */
     RF_OFF_NOT_CONFIRMED,
+
+    /**
+     * The working config was empty or incomplete (no channels, every channel limit 0: what an
+     * incomplete model load leaves behind, assumption r11), so the radio refused to write it and
+     * nothing was sent. The session read the radio's configuration back (or reloaded the current
+     * model); the device was not changed.
+     */
+    CONFIG_INCOMPLETE,
 }
 
 /** Result of a [ConfigSession] operation. */

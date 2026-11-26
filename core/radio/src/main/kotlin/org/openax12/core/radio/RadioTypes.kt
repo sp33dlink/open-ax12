@@ -116,7 +116,15 @@ enum class TaskResult {
     NOT_READY,
 
     /** The same task is already running; this call did not start a second one. */
-    BUSY;
+    BUSY,
+
+    /**
+     * The task was refused because it would harm the radio: `saveConfigToDevice` with a working
+     * config that is empty or has no channel limits (what an incomplete `loadModelFile` leaves
+     * behind, assumption r11). Nothing was sent. The working config must be replaced (load a
+     * complete file or read the device) before anything is saved.
+     */
+    REFUSED;
 
     /** True for [COMPLETED]. */
     val isSuccess: Boolean get() = this == COMPLETED

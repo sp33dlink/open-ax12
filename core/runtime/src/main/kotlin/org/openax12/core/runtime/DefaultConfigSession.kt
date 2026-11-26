@@ -140,7 +140,7 @@ class DefaultConfigSession(
     override suspend fun save(): SessionResult<ModelSnapshot> = exclusive {
         notReady("save")?.let { return@exclusive it }
         _saveState.value = SaveState.Saving
-        val task = radio.saveConfigToDevice()
+        val task = radio.saveConfigToDevice().also { if (it == TaskResult.REFUSED) recoverFromRefusedWrite("save") }
         if (!task.isSuccess) return@exclusive fail(task.toError(), "save: the device write ended with $task")
         when (val saved = models.onDeviceConfigSaved()) {
             is DataResult.Failure -> failData("save: the library could not persist the model", saved)
@@ -172,6 +172,22 @@ class DefaultConfigSession(
         _saveState.value = SaveState.Idle
         refreshWorkingConfig()
         return SessionResult.Success(Unit)
+    }
+
+    /**
+     * The radio refused to write the working config because it is empty or incomplete (nothing was
+     * sent): bring the working config back to a real configuration, as [discard] does. The
+     * failure the caller reports is the refusal, whatever the recovery does.
+     */
+    private suspend fun recoverFromRefusedWrite(operation: String) {
+        diagnostics.record(
+            DiagnosticsLog.SOURCE_SESSION,
+            "$operation: the radio refused to write an incomplete working configuration; reading the radio's configuration back",
+        )
+        val recovered = discardLocked(operation)
+        if (recovered is SessionResult.Failure) {
+            diagnostics.record(DiagnosticsLog.SOURCE_SESSION, "$operation: the recovery after the refusal failed: ${recovered.detail}")
+        }
     }
 
     // -- Mix plans ----------------------------------------------------------------------------------
@@ -356,7 +372,7 @@ class DefaultConfigSession(
             if (radio.configRevision.value != revision) discardLocked("updateSystemConfig")
             return@exclusive fail(SessionError.SYSTEM_CONFIG_NOT_APPLIED, "updateSystemConfig: the SDK rejected the configuration")
         }
-        val task = radio.saveConfigToDevice()
+        val task = radio.saveConfigToDevice().also { if (it == TaskResult.REFUSED) recoverFromRefusedWrite("updateSystemConfig") }
         if (!task.isSuccess) {
             // The change stays in the working config: Save retries, Discard reverts it.
             _dirty.value = true
@@ -549,7 +565,7 @@ class DefaultConfigSession(
 
     /** [save] without the mutex, returning only the failure. */
     private suspend fun saveLocked(operation: String): SessionResult.Failure? {
-        val task = radio.saveConfigToDevice()
+        val task = radio.saveConfigToDevice().also { if (it == TaskResult.REFUSED) recoverFromRefusedWrite(operation) }
         if (!task.isSuccess) return fail(task.toError(), "$operation: the device write ended with $task")
         return when (val saved = models.onDeviceConfigSaved()) {
             is DataResult.Failure -> failData("$operation: the library could not persist the model", saved)
@@ -610,7 +626,11 @@ class DefaultConfigSession(
      * `deviceInSync` false ([SessionError.DEVICE_WRITE_PENDING]).
      */
     private suspend fun writeLoadedModel(operation: String): SessionResult<ModelEntry> {
-        val task = radio.saveConfigToDevice()
+        val task = radio.saveConfigToDevice().also { if (it == TaskResult.REFUSED) recoverFromRefusedWrite(operation) }
+        if (task == TaskResult.REFUSED) {
+            // Nothing was sent; the working config is whatever the recovery left (never the empty one).
+            return fail(SessionError.CONFIG_INCOMPLETE, "$operation: the loaded working configuration was incomplete, nothing was written")
+        }
         if (!task.isSuccess) {
             refreshWorkingConfig()
             return fail(
@@ -710,6 +730,7 @@ class DefaultConfigSession(
         TaskResult.TIMED_OUT -> SessionError.DEVICE_TIMEOUT
         TaskResult.NOT_READY -> SessionError.RADIO_NOT_READY
         TaskResult.BUSY -> SessionError.BUSY
+        TaskResult.REFUSED -> SessionError.CONFIG_INCOMPLETE
     }
 
     /** A refusal: recorded, but the save state is left alone. */

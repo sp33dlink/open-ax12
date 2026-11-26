@@ -24,6 +24,7 @@ internal enum class Feedback(val kind: AxToastKind, @param:StringRes val text: I
     SYSTEM_UNAVAILABLE(AxToastKind.Warning, R.string.fb_system_unavailable),
     SYSTEM_NOT_APPLIED(AxToastKind.Error, R.string.fb_system_not_applied),
     RF_OFF_UNCONFIRMED(AxToastKind.Warning, R.string.fb_rf_off_unconfirmed),
+    CONFIG_INCOMPLETE(AxToastKind.Error, R.string.fb_config_incomplete),
     TIMEOUT(AxToastKind.Error, R.string.fb_timeout),
     FAILED(AxToastKind.Error, R.string.fb_failed),
     REJECTED(AxToastKind.Error, R.string.fb_rejected),
@@ -52,6 +53,7 @@ internal fun SessionResult<*>.toFeedback(): Feedback = when (this) {
         SessionError.SYSTEM_CONFIG_UNAVAILABLE -> Feedback.SYSTEM_UNAVAILABLE
         SessionError.SYSTEM_CONFIG_NOT_APPLIED -> Feedback.SYSTEM_NOT_APPLIED
         SessionError.RF_OFF_NOT_CONFIRMED -> Feedback.RF_OFF_UNCONFIRMED
+        SessionError.CONFIG_INCOMPLETE -> Feedback.CONFIG_INCOMPLETE
         else -> Feedback.FAILED
     }
 }

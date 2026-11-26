@@ -20,6 +20,7 @@ import org.openax12.core.model.Ax12Json
 import org.openax12.core.model.MODEL_PICTURE_FILE_NAME
 import org.openax12.core.model.ModelExtras
 import org.openax12.core.model.ModelExtrasCodec
+import org.openax12.core.model.ModelFileCheck
 import org.openax12.core.model.ModelType
 
 /**
@@ -131,6 +132,16 @@ internal object ModelArchive {
     /** True if [bytes] is a syntactically valid JSON object (what an SDK model file is). */
     fun isJsonObject(bytes: ByteArray): Boolean = parseJsonObject(bytes) != null
 
+    /**
+     * Why [bytes] cannot be used as an SDK model file, or null: not a JSON object, or an SDK file
+     * that is incomplete ([ModelFileCheck.fileProblem]: without channel data the SDK loads it as an
+     * empty configuration, assumption r11).
+     */
+    fun modelFileProblem(bytes: ByteArray): String? {
+        if (!isJsonObject(bytes)) return "it is not a JSON object"
+        return ModelFileCheck.fileProblem(bytes.toString(Charsets.UTF_8))
+    }
+
     /** True if [bytes] starts like a JPEG or PNG image. */
     fun looksLikeImage(bytes: ByteArray): Boolean {
         if (bytes.size < 8) return false
@@ -165,7 +176,7 @@ internal object ModelArchive {
         fun entry(name: String): ByteArray? = files[prefix + name]
 
         val model = entry(MODEL_FILE) ?: return ParseResult.Rejected(ImportProblem.MISSING_MODEL_FILE)
-        if (!isJsonObject(model)) return ParseResult.Rejected(ImportProblem.NOT_A_MODEL, "$MODEL_FILE is not a JSON object")
+        modelFileProblem(model)?.let { return ParseResult.Rejected(ImportProblem.NOT_A_MODEL, "$MODEL_FILE: $it") }
 
         var manifest: ArchiveManifest? = null
         entry(MANIFEST_FILE)?.let { bytes ->
