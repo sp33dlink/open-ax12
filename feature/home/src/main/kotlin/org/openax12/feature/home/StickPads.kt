@@ -14,9 +14,9 @@ import org.openax12.core.model.StickMode
 /** Which of the two pads. */
 internal enum class PadSide { LEFT, RIGHT }
 
-/** Size of a stick pad on the home screen (the field inside is square). */
+/** Size of a stick pad on the home screen: as wide as its column; the field is square and the trims ride on its border. */
 internal val PadWidth: Dp = 204.dp
-internal val PadHeight: Dp = 192.dp
+internal val PadHeight: Dp = 204.dp
 
 /** Source on the horizontal axis of [side] in [mode]. */
 internal fun padHorizontal(mode: StickMode, side: PadSide): SourceId =
