@@ -4,12 +4,12 @@ name: Android
 # Pushes to develop / master: build, test and publish an installable dev APK as a workflow artifact
 # (signed with the runner's throw-away debug key).
 # Pushes to master with a new version (baseVersionName in app/build.gradle.kts has no tag
-# v<version> yet): the release job builds the signed release APK, creates the tag v<version> and
-# a GitHub release with the APK attached as open-ax12.apk (a fixed name, so
-# https://github.com/sp33dlink/open-ax12/releases/latest/download/open-ax12.apk always
-# points to the latest release). The release is created as a draft, the APK is uploaded
-# and only then it is published (the repository uses immutable releases: a published release
-# cannot get assets afterwards).
+# v<version> yet): the release job builds the signed release APK and creates a DRAFT release
+# "open-ax12 v<version>" with docs/RELEASE_NOTES.md as its text and the APK attached as
+# open-ax12.apk (a fixed name, so .../releases/latest/download/open-ax12.apk always points to the
+# latest release). The owner reviews and publishes the draft by hand on GitHub; publishing creates
+# the tag v<version> on the drafted commit. If a draft for the version exists already (master
+# moved on before publishing), it is replaced. Releases are immutable once published.
 #
 # Signing secrets live in the GitHub environment "release", which only the master branch may use
 # (Settings → Environments → release). Only the release job uses that environment:
@@ -164,10 +164,16 @@ jobs:
           test -f "$apk" || { echo "::error::$apk missing (unsigned?)"; exit 1; }
           cp "$apk" open-ax12.apk
 
-      - name: Create the release (draft, with APK) and publish it
+      - name: Create the draft release with the APK
         run: |
+          # Replace an unpublished draft of this version (published releases are never touched:
+          # the build job only gets here while the tag v<version> does not exist).
+          if [ "$(gh release view "v$VERSION" --json isDraft -q .isDraft 2>/dev/null)" = true ]; then
+            echo "Replacing the existing draft of v$VERSION."
+            gh release delete "v$VERSION" --yes
+          fi
           gh release create "v$VERSION" open-ax12.apk \
             --draft --target "$GITHUB_SHA" \
             --title "open-ax12 v$VERSION" \
-            --notes-file docs/RELEASE_NOTES.md --generate-notes
-          gh release edit "v$VERSION" --draft=false --latest
+            --notes-file docs/RELEASE_NOTES.md
+          echo "Draft created: review and publish it on GitHub (Releases)." >> "$GITHUB_STEP_SUMMARY"
