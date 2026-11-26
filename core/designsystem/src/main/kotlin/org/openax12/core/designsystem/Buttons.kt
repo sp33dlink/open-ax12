@@ -79,6 +79,9 @@ enum class AxButtonVariant {
 
     /** Filled with the error colour: destructive actions. */
     Danger,
+
+    /** Outline and label in the error colour, no fill: the entry point of a destructive action. */
+    DangerOutlined,
 }
 
 /**
@@ -108,6 +111,7 @@ fun AxButton(
         AxButtonVariant.Raised -> colors.text
         AxButtonVariant.Primary, AxButtonVariant.Danger -> colors.onAccent
         AxButtonVariant.Outlined -> colors.text
+        AxButtonVariant.DangerOutlined -> colors.error
         AxButtonVariant.Text -> colors.accent
     }
     val fill = when (variant) {
@@ -128,8 +132,12 @@ fun AxButton(
                 if (pressed) drawRoundRect(Color.Black.copy(alpha = 0.18f), cornerRadius = CornerRadius(radius.toPx()))
             }
         }
-        AxButtonVariant.Outlined -> {
-            val borderColor = if (colors.neumorphic) colors.outlineStrong else colors.text
+        AxButtonVariant.Outlined, AxButtonVariant.DangerOutlined -> {
+            val borderColor = when {
+                variant == AxButtonVariant.DangerOutlined -> colors.error
+                colors.neumorphic -> colors.outlineStrong
+                else -> colors.text
+            }
             val border = shapes.border + 0.5.dp
             Modifier.drawBehind {
                 val b = border.toPx()

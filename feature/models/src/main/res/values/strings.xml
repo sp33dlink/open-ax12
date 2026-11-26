@@ -103,6 +103,7 @@
     <string name="models_delete_message">The model, its picture, notes and all its snapshots are removed from the radio and the library.</string>
     <string name="models_delete_second">This cannot be undone. Export the model first if you may need it again.</string>
     <string name="models_delete_hold">Hold to delete</string>
+    <string name="models_delete_hold_description">Delete model. Press and hold, or activate with an accessibility service.</string>
     <string name="models_share_title">Share model</string>
 
     <!-- Snapshots -->

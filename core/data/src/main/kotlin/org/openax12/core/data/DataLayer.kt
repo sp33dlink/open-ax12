@@ -70,6 +70,7 @@ fun createDataLayer(
         scope = scope,
         dispatchers = dispatchers,
         appVersion = appVersion,
+        importedModelName = { date -> appContext.getString(R.string.library_imported_from_radio, date) },
     )
     val telemetry = DefaultTelemetryRepository(
         radio = radio,
