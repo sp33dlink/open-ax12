@@ -6,7 +6,7 @@ plugins {
 // dev build installs over the previous one). versionName = the base version below; builds that
 // are not release builds (-Popenax12.release=true, used by the tag pipeline) get
 // "-dev.<commits>+<short sha>" appended.
-val baseVersionName = "0.1"
+val baseVersionName = "0.2"
 
 fun gitOutput(vararg args: String): Provider<String> =
     providers.exec {
