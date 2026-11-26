@@ -15,4 +15,4 @@ open-ax12 v0.2 is the first version tested on a real RadioMaster AX12. It fixes 
 - **Start on boot** (setting, on by default) and a one-page **onboarding** on first start.
 - **Home:** bigger stick pads with the trims on the border, borders light up only at exactly ±100 % (reveals missing calibration), widgets first in the centre card, the SP button row like the stock app, new switch colours (up turquoise, mid orange, down gray).
 
-No APK is attached to this release. Build it yourself (see the README) or take the dev APK from the latest successful run of the Android workflow.
+Install `open-ax12-v<version>.apk` from the assets below with `adb install -r` (force-stop the stock app first). If an older open-ax12 with a different signature is installed, uninstall it once first.
