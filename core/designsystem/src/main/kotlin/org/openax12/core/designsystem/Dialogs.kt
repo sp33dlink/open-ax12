@@ -74,6 +74,7 @@ val AxDialogMaxHeight: Dp = 452.dp
  *   field so the soft keyboard does not cover them
  * @param dismissOnOutsideClick taps on the scrim dismiss
  * @param dismissOnBack back dismisses; false swallows back (e.g. while saving)
+ * @param titleTrailing optional content at the right end of the title row (e.g. a hint)
  * @param buttons button row at the bottom, right-aligned
  * @param content dialog body; it is not scrollable by itself
  */
@@ -89,6 +90,7 @@ fun AxDialog(
     dismissOnOutsideClick: Boolean = true,
     dismissOnBack: Boolean = true,
     contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp),
+    titleTrailing: (@Composable RowScope.() -> Unit)? = null,
     buttons: (@Composable RowScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -115,6 +117,7 @@ fun AxDialog(
                 iconTint = iconTint,
                 width = width,
                 contentPadding = contentPadding,
+                titleTrailing = titleTrailing,
                 buttons = buttons,
                 content = content,
             )
@@ -134,6 +137,7 @@ fun AxDialogSurface(
     iconTint: Color = AxTheme.colors.accent,
     width: Dp = 420.dp,
     contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp),
+    titleTrailing: (@Composable RowScope.() -> Unit)? = null,
     buttons: (@Composable RowScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -182,7 +186,12 @@ fun AxDialogSurface(
                         color = colors.text,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = if (titleTrailing != null) Modifier.weight(1f) else Modifier,
                     )
+                    if (titleTrailing != null) {
+                        Spacer(Modifier.width(12.dp))
+                        titleTrailing()
+                    }
                 }
             }
             Column(

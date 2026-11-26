@@ -41,6 +41,7 @@ import org.openax12.core.designsystem.AxTheme
 import org.openax12.core.designsystem.AxToastKind
 import org.openax12.core.designsystem.ConfirmDialog
 import org.openax12.core.designsystem.FixedCanvas
+import org.openax12.core.designsystem.LocalLiveFeed
 import org.openax12.core.designsystem.LocalAxToastState
 import org.openax12.core.designsystem.TouchLockOverlay
 import org.openax12.core.designsystem.UnsavedChangesDialog
@@ -101,6 +102,8 @@ internal fun Ax12Root(
                 LocalAppGraph provides graph,
                 LocalShellActions provides shellActions,
                 LocalWidgetDataSource provides remember(graph) { GraphWidgetDataSource(graph) },
+                // Lets the input pickers select the input the user moves ("move to select").
+                LocalLiveFeed provides graph.radio.live,
             ) {
                 Box(modifier = Modifier.fillMaxSize().trackTouches(touchLock)) {
                     StartupGate(

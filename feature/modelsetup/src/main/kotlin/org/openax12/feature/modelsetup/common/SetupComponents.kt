@@ -274,6 +274,7 @@ internal fun SourcePickerDialog(
                 label = config.sourceName(id),
                 group = groupNames.getValue(id.kind),
                 enabled = id !in disabled,
+                source = id,
             )
         }
     }
