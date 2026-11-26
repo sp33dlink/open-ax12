@@ -10,6 +10,22 @@ custom model pictures and a configurable telemetry dashboard.
 > simulator. Check every model on the ground (receiver connected, propeller off) before you fly
 > with it. Firmware updates stay in the stock app.
 
+## Install on the AX12
+
+[![Download the latest APK](https://img.shields.io/github/v/release/sp33dlink/open-ax12?label=Download%20APK&logo=android&style=for-the-badge&color=2e7bb4)](https://github.com/sp33dlink/open-ax12/releases/latest/download/open-ax12.apk)
+
+1. On the radio, open this page in the web browser and tap **Download APK** above (or get
+   `open-ax12.apk` from the [latest release](https://github.com/sp33dlink/open-ax12/releases/latest)).
+2. Open the download. When Android asks, allow the browser to install apps
+   ("Install unknown apps"), then tap **Install**.
+3. Start open-ax12. It closes the stock RadioMaster app by itself before it connects — only one app
+   can use the radio at a time — and can start automatically when the radio boots (both on by
+   default, shown on first start and under System → App).
+
+Connecting takes about 15–20 s after the app starts; the radio itself needs about 12 s before it
+answers. To go back to the stock app, close open-ax12 (notification → Quit) and open the stock app.
+Firmware updates stay in the stock app.
+
 | Home with pinned telemetry widgets | Flight modes, compiled into the radio's mixer |
 |---|---|
 | ![Home screen with vario, altitude, battery, link, timer and flight-mode widgets](docs/screenshots/home-telemetry.png) | ![Flight modes tab with three glider modes on switch SC](docs/screenshots/flight-modes.png) |
@@ -36,29 +52,6 @@ custom model pictures and a configurable telemetry dashboard.
 
 All settings are per model except the system settings.
 
-## Installing on the AX12
-
-Download `open-ax12-v<version>.apk` from the [latest release](../../releases/latest), or a dev APK from the
-latest successful run of the [Android workflow](../../actions/workflows/android.yml) (artifact
-`open-ax12-dev-apk`), or build it yourself (below).
-
-1. Enable developer options and USB debugging on the AX12 and connect it to your computer.
-2. Only one app can use the radio's serial port. open-ax12 closes the stock RadioMaster app itself
-   before it connects (System → App → "Close the stock app automatically", on by default). If it
-   cannot connect, the error screen has a "Close stock app" button; you can also swipe the stock app
-   away in the recent-apps view or use Android Settings → Apps → RadioMaster AX → Force stop.
-   The first start shows a short onboarding with this choice and "Start open-ax12 when the radio
-   boots" (also in System → App); with the second on, open-ax12 comes up about 15 s after the
-   stock app has started at boot.
-3. Install and start:
-
-   ```bash
-   adb install -r open-ax12-*.apk
-   ```
-
-The first connection after starting the app takes about 15–20 s; the radio itself needs about
-12 s before it answers. To go back, close open-ax12 (notification → Quit) and open the stock app.
-
 ## Building
 
 Requirements: JDK 21, Android SDK with platform `android-37.0`, NDK `29.0.14206865` and CMake
@@ -75,6 +68,19 @@ Full check (build + all unit tests):
 ```bash
 ./gradlew assembleDebug testDebugUnitTest :core:model:test :core:engine:test
 ```
+
+### Development builds
+
+Every push to `develop` and `master` produces a dev APK (artifact `open-ax12-dev-apk` of the
+[Android workflow](../../actions/workflows/android.yml)). Install one, or your own build, with USB
+debugging enabled on the radio:
+
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Dev APKs and release APKs are signed with different keys: uninstall open-ax12 once when switching
+between them.
 
 ### The RadioMaster SDK
 
@@ -96,7 +102,7 @@ over the previous one. Dev builds are named `<version>-dev.<commits>+<sha>`; rel
 Bump `baseVersionName` (and update `docs/RELEASE_NOTES.md`) through a pull request into `develop`,
 then merge `develop` into `master`. When `master` has a version without a tag `v<version>`, the
 Android workflow builds and signs the release APK, creates the tag and the GitHub release with
-`open-ax12-v<version>.apk` attached. Do not create the tag or the release by hand: releases are
+`open-ax12.apk` attached. Do not create the tag or the release by hand: releases are
 immutable, so a release created first cannot get the APK any more.
 
 Releases need a stable signing key. It lives as four secrets in the GitHub environment `release`
