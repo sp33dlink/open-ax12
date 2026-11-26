@@ -66,7 +66,7 @@ fun OutputScreenshot() {
     }
 }
 
-private fun mixesState(expanded: Int?, acknowledged: Set<MixKey> = emptySet()) = MixesState(
+internal fun mixesState(expanded: Int?, acknowledged: Set<MixKey> = emptySet()) = MixesState(
     ready = true,
     config = Config,
     channels = mixChannels(Config, Extras),

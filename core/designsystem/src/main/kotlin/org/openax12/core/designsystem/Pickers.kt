@@ -30,6 +30,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -57,6 +58,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import org.openax12.core.model.MoveToSelectDetector
+import org.openax12.core.model.SourceId
 
 /**
  * Single-line text field in a sunken well.
@@ -230,6 +233,8 @@ fun TextEntryDialog(
  * @property description optional second line (list layout) / small caption (grid layout)
  * @property icon optional icon
  * @property enabled false greys the option out
+ * @property source the radio input this option stands for, if any. Options with a source take part
+ *   in "move to select": moving that input while the picker is open picks the option
  */
 @Immutable
 data class PickerOption<T>(
@@ -239,6 +244,7 @@ data class PickerOption<T>(
     val description: String? = null,
     val icon: ImageVector? = null,
     val enabled: Boolean = true,
+    val source: SourceId? = null,
 )
 
 /**
@@ -246,6 +252,11 @@ data class PickerOption<T>(
  * Used for sources, curves, sensors, switches, sounds — anything chosen from a set.
  *
  * Picking an option calls [onSelect]; the caller closes the dialog by no longer calling it.
+ *
+ * **Move to select:** if some enabled options have a [PickerOption.source] and the app provides
+ * [LocalLiveFeed], moving one of those inputs (more than 10 %, a switch by one position) while the
+ * dialog is open calls [onSelect] with that option, exactly like a tap. The title row then shows
+ * [MoveToSelectHint]. See [MoveToSelectDetector].
  *
  * @param options all options
  * @param selected the currently selected value (highlighted), or null
@@ -281,6 +292,13 @@ fun <T> PickerDialog(
         val index = filtered.indexOfFirst { it.value == selected }
         if (index > 0) gridState.scrollToItem(index)
     }
+    // Move to select: every enabled option that stands for a radio input.
+    val bySource = remember(options) { moveToSelectTargets(options) }
+    val currentOnSelect by rememberUpdatedState(onSelect)
+    val moveToSelect = MoveToSelectEffect(
+        candidates = remember(bySource) { bySource.keys.toList() },
+        onMoved = { source -> bySource[source]?.let { currentOnSelect(it.value) } },
+    )
     AxDialog(
         onDismissRequest = onDismiss,
         modifier = modifier,
@@ -288,6 +306,11 @@ fun <T> PickerDialog(
         width = width,
         alignment = if (searchable) Alignment.TopCenter else Alignment.Center,
         contentPadding = PaddingValues(horizontal = 14.dp),
+        titleTrailing = if (moveToSelect) {
+            { MoveToSelectHint() }
+        } else {
+            null
+        },
         buttons = {
             AxButton(text = stringResource(R.string.ax_cancel), onClick = onDismiss, variant = AxButtonVariant.Text)
         },

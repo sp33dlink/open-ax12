@@ -176,7 +176,7 @@ internal fun SensorPickerDialog(
             if (allowNone) add(PickerOption<SensorId?>(value = null, label = noneLabel))
             val suggestedIds = suggestions.distinct()
             suggestedIds.forEach { id ->
-                add(PickerOption<SensorId?>(value = id, label = sensorLabel(id, sensors), group = suggestedLabel, description = id.key))
+                add(PickerOption<SensorId?>(value = id, label = sensorLabel(id, sensors), group = suggestedLabel, description = id.key, source = id.source))
             }
             sensors.filter { !it.hidden && it.id !in suggestedIds }.forEach { info ->
                 add(
@@ -185,6 +185,7 @@ internal fun SensorPickerDialog(
                         label = info.name,
                         group = categoryLabels.getValue(sensorCategory(info.id, info.origin)),
                         description = info.id.key,
+                        source = info.id.source,
                     ),
                 )
             }

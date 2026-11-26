@@ -18,3 +18,5 @@ has no entries.
 
 * Releases
    * CI drafts the release with the signed APK and this text; it is published by hand #15
+* Model setup
+   * Input pickers (mixes, switches, wing setup, ...) select the input you move while they are open: more than 10 % of travel, or a switch position change; a hand icon in the title shows it

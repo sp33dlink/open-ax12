@@ -15,6 +15,7 @@
     <string name="ax_all">All</string>
     <string name="ax_choose">Choose</string>
     <string name="ax_no_matches">No matches</string>
+    <string name="ax_move_to_select">Move an input to select it</string>
     <string name="ax_increase">Increase</string>
     <string name="ax_decrease">Decrease</string>
     <string name="ax_backspace">Delete last digit</string>

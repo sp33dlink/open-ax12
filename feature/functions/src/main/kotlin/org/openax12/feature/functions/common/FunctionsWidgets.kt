@@ -352,6 +352,7 @@ internal fun SourceField(
                 label = option.name,
                 group = groups[SourceGroups.of(option.id)],
                 description = option.id.defaultName.takeIf { it != option.name },
+                source = option.id,
             )
         }
         PickerDialog(
@@ -391,6 +392,7 @@ internal fun SensorField(
                 label = sensor.name,
                 group = labels[sensor.group],
                 description = sensor.unit.symbol.takeIf { it.isNotEmpty() },
+                source = sensor.id.source,
             )
         }
         PickerDialog(
