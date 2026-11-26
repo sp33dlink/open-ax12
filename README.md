@@ -5,7 +5,7 @@ look and feel of the stock app and adds EdgeTX-style features on top: logical sw
 functions, voice alerts with telemetry variables, a variometer, flight modes, flaps/wing mixing,
 custom model pictures and a configurable telemetry dashboard.
 
-> **Status: v0.2, early alpha.** It runs on the AX12 and shows live sticks, switches and channels
+> **Status: v0.2.1, early alpha.** It runs on the AX12 and shows live sticks, switches and channels
 > correctly. Most configuration screens have so far only been exercised against the built-in
 > simulator. Check every model on the ground (receiver connected, propeller off) before you fly
 > with it. Firmware updates stay in the stock app.
