@@ -99,33 +99,35 @@ Android workflow builds and signs the release APK, creates the tag and the GitHu
 `open-ax12-v<version>.apk` attached. Do not create the tag or the release by hand: releases are
 immutable, so a release created first cannot get the APK any more.
 
-Releases need a stable signing key in the repository secrets (Settings → Secrets and variables →
-Actions). Create it once and keep the `.jks` file and its passwords safe, outside the repository —
-without it no update can be installed over an existing install:
+Releases need a stable signing key. It lives as four secrets in the GitHub environment `release`
+(Settings → Environments → release), which only the `master` branch may use, and only the release
+job uses that environment: pull requests and `develop` never see the key. Create the key once and
+keep the `.jks` file and its password safe, outside the repository (for example in a password
+manager) — GitHub secrets cannot be read back, and without the key no update can be installed over
+an existing install:
 
 ```bash
-keytool -genkeypair -v -keystore openax12-release.jks -alias openax12 -keyalg RSA -keysize 4096 -validity 36500
+keytool -genkeypair -v -keystore openax12-release.jks -storetype PKCS12 -alias openax12 -keyalg RSA -keysize 4096 -validity 36500
 ```
 
 ```bash
-base64 -i openax12-release.jks | gh secret set OPENAX12_KEYSTORE_BASE64
+base64 -i openax12-release.jks | gh secret set OPENAX12_KEYSTORE_BASE64 --env release
 ```
 
 ```bash
-gh secret set OPENAX12_KEYSTORE_PASSWORD
+gh secret set OPENAX12_KEYSTORE_PASSWORD --env release
 ```
 
 ```bash
-gh secret set OPENAX12_KEY_ALIAS --body openax12
+gh secret set OPENAX12_KEY_ALIAS --env release --body openax12
 ```
 
 ```bash
-gh secret set OPENAX12_KEY_PASSWORD
+gh secret set OPENAX12_KEY_PASSWORD --env release
 ```
 
-With the key in place, the dev APKs from CI are signed with it too, so they install over a release
-(and the other way round). APKs built locally or before the key existed use a different signature:
-uninstall them once before installing a CI build.
+Dev APKs from CI are signed with a throw-away debug key, so a release cannot be installed over a
+dev APK (or the other way round) without uninstalling first.
 
 ### Without a radio
 

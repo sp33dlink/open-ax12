@@ -19,10 +19,9 @@ val commitCount: Int = gitOutput("rev-list", "--count", "HEAD").orNull?.toIntOrN
 val shortSha: String = gitOutput("rev-parse", "--short=7", "HEAD").orNull?.takeIf { it.matches(Regex("[0-9a-f]{7}")) } ?: "local"
 val isRelease: Boolean = providers.gradleProperty("openax12.release").orNull == "true"
 
-// Signing: CI provides a stable key through these environment variables (decoded from repository
-// secrets, see .github/workflows/android.yml). With a key, debug and release APKs are signed with
-// it, so every CI build installs as an update over the previous one. Without it (local builds),
-// debug uses the local debug key and release APKs stay unsigned.
+// Signing: the release job in CI provides the release key through these environment variables
+// (decoded from the secrets of the GitHub environment "release", see .github/workflows/android.yml).
+// Without them (local builds, other CI jobs) debug uses the debug key and release APKs stay unsigned.
 val signingKeyFile: String? = providers.environmentVariable("OPENAX12_KEYSTORE_FILE").orNull
     ?.takeIf { file(it).isFile }
 
