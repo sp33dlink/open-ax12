@@ -145,7 +145,11 @@ internal class DefaultTelemetryRepository(
     }
 
     override fun info(id: SensorId): SensorInfo? {
-        if (!id.isLive) return registry.info(id)
+        if (!id.isLive) {
+            // A well-known sensor that has not reported yet (no receiver bound) still has its readable
+            // name, so that widgets show "Altitude" instead of the raw key "alt".
+            return registry.info(id) ?: if (SensorCatalog.hasReadableName(id)) registry.withOverrides(SensorCatalog.defaultInfo(id)) else null
+        }
         if (liveReader(id) == null) return null
         return registry.withOverrides(SensorCatalog.defaultInfo(id))
     }

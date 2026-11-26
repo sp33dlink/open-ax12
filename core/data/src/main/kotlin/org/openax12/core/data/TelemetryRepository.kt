@@ -76,7 +76,7 @@ interface TelemetryRepository {
     /** The value of one sensor right now; null if unknown. Works for every namespace. */
     fun value(id: SensorId): SensorValue?
 
-    /** Metadata of one sensor; null if unknown. */
+    /** Metadata of one sensor; null if unknown. A well-known sensor that has not reported yet has its default metadata. */
     fun info(id: SensorId): SensorInfo?
 
     /**

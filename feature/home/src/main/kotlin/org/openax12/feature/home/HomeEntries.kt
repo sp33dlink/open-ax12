@@ -17,8 +17,8 @@ import org.openax12.core.model.LiveSnapshot
 import org.openax12.core.model.LogicalSwitchStates
 import org.openax12.core.navigation.Home
 import org.openax12.core.navigation.LocalNavigator
-import org.openax12.core.navigation.Models
 import org.openax12.core.navigation.SetupTabIds
+import org.openax12.core.navigation.Telemetry
 import org.openax12.core.runtime.ActiveFlightMode
 import org.openax12.core.runtime.LocalAppGraph
 
@@ -58,7 +58,7 @@ internal fun HomeRoute() {
         logicalSwitches = logicalSwitches,
         onAction = { action ->
             when (action) {
-                HomeAction.OpenModels -> navigator.navigate(Models)
+                HomeAction.OpenTelemetry -> navigator.navigate(Telemetry)
                 HomeAction.OpenTimerSettings -> navigator.openSetupTab(SetupTabIds.TIMERS)
                 is HomeAction.ResetTimer -> {
                     view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)

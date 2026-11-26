@@ -94,6 +94,9 @@ internal object SensorCatalog {
         for (channel in 0 until org.openax12.core.model.CHANNEL_COUNT) add(SensorId.channel(channel))
     }
 
+    /** True if the catalog has a real (readable) name for [id], i.e. [defaultInfo] is more than a copy of the key. */
+    fun hasReadableName(id: SensorId): Boolean = id in WELL_KNOWN || RotorflightSensors.forSensor(id) != null
+
     /** Default metadata of [id]; a generic entry named after the id if nothing is known. */
     fun defaultInfo(id: SensorId): SensorInfo {
         WELL_KNOWN[id]?.let { def ->

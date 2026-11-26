@@ -160,7 +160,6 @@ class HomeModelTest {
         val model = ModelEntry(id = "m", name = "Alula", picturePath = "/p.jpg", pictureVersion = 4)
         val state = buildHomeState(model, extras, config(setOf(Sources.SA), stick = StickMode.MODE_1))
 
-        assertEquals("Alula", state.modelName)
         assertEquals("/p.jpg", state.picturePath)
         assertEquals(4L, state.pictureVersion)
         assertEquals(HomeCenterCard.WIDGETS, state.centerCard)
@@ -178,6 +177,48 @@ class HomeModelTest {
         val base = buildHomeState(null, ModelExtras(), org.openax12.core.model.WorkingConfig.EMPTY)
         assertEquals((0..7).toList(), base.visibleChannels.map { it.index })
         assertEquals((8..15).toList(), base.copy(channelPage = 1).visibleChannels.map { it.index })
-        assertEquals("", base.modelName)
+    }
+
+    private fun pinnedWidgets(count: Int) = List(count) { WidgetConfig(id = "w$it", pinned = true, pinOrder = it) }
+
+    private fun extrasWith(pinned: Int, centerCard: HomeCenterCard? = null) = ModelExtras(
+        home = HomePreferences(centerCard = centerCard),
+        telemetry = TelemetryLayout(pages = listOf(TelemetryPage(id = "p", widgets = pinnedWidgets(pinned)))),
+    )
+
+    @Test
+    fun `a model with pinned widgets opens on the widgets`() {
+        val state = buildHomeState(null, extrasWith(pinned = 3), config(emptySet()))
+        assertEquals(HomeCenterCard.WIDGETS, state.centerCard)
+        assertTrue(state.hasPinnedWidgets)
+    }
+
+    @Test
+    fun `a model without pinned widgets shows the picture whatever was stored`() {
+        for (stored in listOf(null, HomeCenterCard.PICTURE, HomeCenterCard.WIDGETS)) {
+            val state = buildHomeState(null, extrasWith(pinned = 0, centerCard = stored), config(emptySet()))
+            assertEquals(HomeCenterCard.PICTURE, state.centerCard)
+            assertFalse(state.hasPinnedWidgets)
+        }
+    }
+
+    @Test
+    fun `the remembered choice wins when widgets are pinned`() {
+        val state = buildHomeState(null, extrasWith(pinned = 2, centerCard = HomeCenterCard.PICTURE), config(emptySet()))
+        assertEquals(HomeCenterCard.PICTURE, state.centerCard)
+    }
+
+    @Test
+    fun `flipping from the default view remembers the picture and flips back`() {
+        val first = toggleCenterCard(extrasWith(pinned = 2))
+        assertEquals(HomeCenterCard.PICTURE, first.home.centerCard)
+        val second = toggleCenterCard(first)
+        assertEquals(HomeCenterCard.WIDGETS, second.home.centerCard)
+    }
+
+    @Test
+    fun `flipping does nothing without pinned widgets`() {
+        val extras = extrasWith(pinned = 0)
+        assertEquals(extras, toggleCenterCard(extras))
     }
 }
