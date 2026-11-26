@@ -18,7 +18,6 @@ import org.openax12.core.navigation.Home
 import org.openax12.core.navigation.LocalNavigator
 import org.openax12.core.navigation.SetupTabIds
 import org.openax12.core.navigation.Telemetry
-import org.openax12.core.runtime.ActiveFlightMode
 import org.openax12.core.runtime.LocalAppGraph
 
 /** Installs the home screen ([Home]) into the app shell's entry provider. */
